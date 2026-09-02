@@ -514,7 +514,7 @@ input:checked + .toggle-slider:before{transform:translateX(20px);background:#fff
 // ║  AP LIVE RECEIPT REIMBURSEMENT                           ║
 // ╚══════════════════════════════════════════════════════════╝
 
-// API key is handled server-side via /api/vision proxy (Vercel env var)
+// API key handled server-side via /api/vision proxy (Vercel env var)
 const MODEL = 'claude-sonnet-4-6';
 // Fallback chain — tried in order if primary returns 404 (model deprecated)
 const MODEL_FALLBACKS = ['claude-sonnet-4-5', 'claude-haiku-4-5-20251001'];
@@ -2735,16 +2735,9 @@ async function downloadExcel(){
     const uname   = document.getElementById('userName').value||'Invoice';
     const fname   = `${inv_num} - ${uname} - Invoice - ${jobNum} ${city}.xlsx`.replace(/\s+/g,' ').trim();
 
-    // ── FIX FOOTER DOUBLE-ENCODED AMPERSANDS ──────────────────
-    // The template footer has &amp;K000000 instead of &K000000.
-    // Apply directly to already-modified sheet strings.
-    function fixFooter(xml) {
-      return xml.replace(/(<(?:odd|even|first)?(?:Header|Footer)[^>]*>)([\s\S]*?)(<\/(?:odd|even|first)?(?:Header|Footer)>)/g,
-        (m, open, content, close) => open + content.replace(/&amp;/g, '&') + close);
-    }
-    s1 = fixFooter(s1);
-    s2 = fixFooter(s2);
-    s3 = fixFooter(s3);
+    // Footer XML is left as-is — the template already has correctly
+    // escaped &amp; sequences which are valid XML. Do not unescape them.
+
     zip.file('xl/worksheets/sheet2.xml', s2);
     zip.file('xl/worksheets/sheet3.xml', s3);
 
