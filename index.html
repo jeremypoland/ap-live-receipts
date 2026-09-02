@@ -1,0 +1,2857 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AP Live · Receipt Reimbursement</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap');
+
+/* ── THEME VARIABLES ─────────────────────────────────── */
+:root,[data-theme="dark"] {
+  --orange:#E8630A;--orange-light:#F4874A;--orange-pale:#2A1A0A;--orange-border:#5A2F08;
+  --bg:#141210;--surface:#1E1A16;--surface2:#261F19;--surface3:#2E2620;
+  --text:#F7F2EC;--text2:#D8CEBF;--muted:#A08870;--line:#3A3028;
+  --white:#1E1A16;
+  --meal:#D4763B;--meal-light:#2A1A0A;--meal-border:#5A2F08;
+  --trans:#4A9DC4;--trans-light:#0A1A2A;--trans-border:#1A4A6A;
+  --ok:#4CAF72;--err:#E05050;--warn:#E8A020;
+  --ok-bg:#0A1F12;--err-bg:#200A0A;--warn-bg:#1F1200;
+  --shadow:0 2px 12px rgba(0,0,0,0.5);
+  --header-bg:#0A0806;
+}
+[data-theme="light"] {
+  --orange:#E8630A;--orange-light:#F4874A;--orange-pale:#FDF0E8;--orange-border:#F0C8A8;
+  --bg:#FAF7F4;--surface:#FFFFFF;--surface2:#F5F0EB;--surface3:#EDE7E0;
+  --text:#2C2018;--text2:#5A4A3A;--muted:#8C7060;--line:#E8DDD5;
+  --white:#FFFFFF;
+  --meal:#D4763B;--meal-light:#FDF0E8;--meal-border:#F0C8A8;
+  --trans:#3B7DA4;--trans-light:#E8F4FD;--trans-border:#A8CCE0;
+  --ok:#3A7D44;--err:#C0392B;--warn:#E8A020;
+  --ok-bg:#E8F5EA;--err-bg:#FDECEA;--warn-bg:#FEF3DC;
+  --shadow:0 1px 4px rgba(26,20,16,0.08);
+  --header-bg:#1A1410;
+}
+
+/* ── RESET ───────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.6;transition:background .3s,color .3s;}
+
+/* ── HEADER ──────────────────────────────────────────── */
+header{background:var(--header-bg);padding:0 40px;display:flex;align-items:center;justify-content:space-between;height:64px;position:sticky;top:0;z-index:100;border-bottom:2px solid var(--orange);}
+.ics-drop{display:flex;align-items:center;gap:8px;padding:6px 14px;border-radius:8px;border:1.5px dashed var(--line);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;transition:border-color .15s,color .15s;white-space:nowrap;user-select:none;}
+.ics-drop:hover,.ics-drop.drag-over{border-color:var(--orange);color:var(--orange);}
+.ics-drop input{display:none;}
+.ics-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1.5px solid var(--ok);color:var(--ok);padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;max-width:480px;text-align:center;}
+.ics-toast.show{opacity:1;}
+.ics-toast.err{border-color:var(--warn);color:var(--warn);}
+.logo{font-family:'DM Serif Display',serif;font-size:20px;color:#F7F2EC;letter-spacing:0.02em;}
+.logo span{color:var(--orange);}
+.header-tag{font-size:11px;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;font-weight:500;}
+
+/* ── MAIN ────────────────────────────────────────────── */
+main{max-width:980px;margin:0 auto;padding:40px 24px 120px;}
+.section-label{font-size:10px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:var(--orange);margin-bottom:10px;}
+h2{font-family:'DM Serif Display',serif;font-size:26px;color:var(--text);font-weight:400;margin-bottom:6px;}
+.section-desc{color:var(--muted);font-size:13px;margin-bottom:28px;}
+
+/* ── CARD ────────────────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:28px 32px;margin-bottom:24px;box-shadow:var(--shadow);transition:background .3s,border-color .3s;}
+.card-title{font-family:'DM Serif Display',serif;font-size:17px;color:var(--text);margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;}
+.card-title .dot{width:8px;height:8px;background:var(--orange);border-radius:50%;flex-shrink:0;}
+
+/* ── FORM ────────────────────────────────────────────── */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px;}
+.form-group{display:flex;flex-direction:column;gap:5px;position:relative;}
+.form-group.full{grid-column:1/-1;}
+.form-group.third{grid-column:span 1;}
+label{font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:6px;}
+.label-row{display:flex;align-items:center;justify-content:space-between;}
+input[type=text],input[type=number],input[type=email]{
+  border:1.5px solid var(--line);border-radius:8px;padding:9px 13px;
+  font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);
+  background:var(--surface2);transition:border-color .15s,box-shadow .15s,background .3s;width:100%;
+  -moz-appearance:textfield;
+}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(232,99,10,0.15);}
+input.autofilled{background:var(--orange-pale);border-color:var(--orange-border);}
+input.autofilled:focus{background:var(--surface2);}
+.field-hint{font-size:11px;color:var(--muted);font-style:italic;}
+.auto-badge{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--orange);background:var(--orange-pale);border:1px solid var(--orange-border);border-radius:20px;padding:1px 7px;}
+.inline-error{font-size:11px;color:var(--warn);font-weight:500;margin-left:4px;}
+
+/* ── CHECKBOX / PERDIEM ──────────────────────────────── */
+.check-row{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:8px;border:1.5px solid var(--line);background:var(--surface2);transition:border-color .15s;}
+.check-row.active{border-color:var(--orange);}
+.check-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--orange);cursor:pointer;flex-shrink:0;}
+.check-row label{font-size:13px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--text);cursor:pointer;}
+.perdiem-amount{display:flex;align-items:center;gap:8px;margin-left:auto;}
+.perdiem-amount span{font-size:13px;color:var(--muted);}
+.perdiem-amount input{width:80px;text-align:right;padding:6px 10px;font-size:13px;}
+.perdiem-amount input:disabled{opacity:0.4;cursor:not-allowed;}
+
+/* ── DIVIDER ─────────────────────────────────────────── */
+.divider{height:1px;background:var(--line);margin:32px 0;}
+
+/* ── UPLOAD ZONES ────────────────────────────────────── */
+.upload-row{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;}
+.drop-zone{border:2px dashed var(--line);border-radius:12px;padding:24px 20px;text-align:center;cursor:pointer;transition:all .2s;position:relative;background:var(--surface2);}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--orange);background:var(--orange-pale);}
+.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;}
+.drop-icon{font-size:28px;margin-bottom:8px;display:block;}
+.drop-title{font-family:'DM Serif Display',serif;font-size:16px;margin-bottom:3px;}
+.drop-zone.meals .drop-title{color:var(--meal);}
+.drop-zone.transport .drop-title{color:var(--trans);}
+.drop-sub{font-size:12px;color:var(--muted);margin-bottom:6px;}
+.drop-formats{font-size:11px;color:var(--muted);letter-spacing:0.05em;}
+.count-badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:10px;font-size:11px;font-weight:700;padding:0 5px;margin-left:5px;}
+.meals .count-badge{background:var(--meal);color:#fff;}
+.transport .count-badge{background:var(--trans);color:#fff;}
+.file-list{margin-top:10px;display:flex;flex-direction:column;gap:5px;}
+.file-item{display:flex;align-items:center;gap:8px;padding:5px 9px;border-radius:6px;font-size:12px;background:rgba(0,0,0,0.15);}
+[data-theme="light"] .file-item{background:rgba(0,0,0,0.04);}
+.file-item .fi-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2);}
+.fi-remove{cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;border-radius:4px;border:none;background:none;transition:color .15s;}
+.fi-remove:hover{color:var(--err);}
+
+/* ── BUTTONS ─────────────────────────────────────────── */
+.btn-primary{background:var(--orange);color:#fff;border:none;border-radius:10px;padding:13px 28px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s,box-shadow .15s,transform .1s;display:inline-flex;align-items:center;gap:9px;}
+.btn-primary:hover{background:var(--orange-light);box-shadow:0 4px 20px rgba(232,99,10,0.35);}
+.btn-primary:active{transform:scale(0.98);}
+.btn-primary:disabled{opacity:0.45;cursor:not-allowed;transform:none;box-shadow:none;}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1.5px solid var(--line);border-radius:10px;padding:11px 22px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:border-color .15s;display:inline-flex;align-items:center;gap:8px;}
+.btn-secondary:hover{border-color:var(--orange);}
+.btn-dl{background:var(--surface2);color:var(--text);border:1.5px solid var(--line);border-radius:10px;padding:12px 20px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all .15s;}
+.btn-dl:hover{border-color:var(--orange);color:var(--orange);}
+.btn-dl.orange{background:var(--orange);color:#fff;border-color:transparent;}
+.btn-dl.orange:hover{background:var(--orange-light);color:#fff;}
+.btn-dl:disabled{opacity:0.45;cursor:not-allowed;}
+.dl-row{display:flex;gap:12px;flex-wrap:wrap;}
+
+/* ── PROGRESS ────────────────────────────────────────── */
+.progress-area{display:none;}
+.progress-area.active{display:block;}
+.progress-bar-wrap{background:var(--surface3);border-radius:6px;height:5px;overflow:hidden;margin:10px 0;}
+.progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--orange),var(--orange-light));border-radius:6px;transition:width .3s;width:0%;}
+.progress-log{font-size:12px;color:var(--muted);max-height:110px;overflow-y:auto;padding:6px 0;}
+.progress-log p{margin-bottom:3px;}
+.progress-log p.ok{color:var(--ok);}
+.progress-log p.err{color:var(--err);}
+
+/* ── RESULTS ─────────────────────────────────────────── */
+.results-section{display:none;}
+.results-section.active{display:block;}
+.result-table-wrap{overflow-x:auto;margin-bottom:16px;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);padding:7px 11px;border-bottom:2px solid var(--line);white-space:nowrap;}
+td{padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:middle;color:var(--text);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--surface2);}
+.total-cell{font-weight:600;font-variant-numeric:tabular-nums;color:var(--ok);}
+.total-cell.flagged{color:var(--warn);}
+.edit-btn{background:none;border:1px solid var(--line);border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer;color:var(--muted);font-family:'DM Sans',sans-serif;transition:all .15s;white-space:nowrap;}
+.edit-btn:hover{border-color:var(--orange);color:var(--orange);}
+.table-total-row td{font-weight:700;background:var(--surface2);border-top:2px solid var(--line);}
+.summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px;}
+.summary-grid.has-overage{grid-template-columns:repeat(4,1fr);}
+td.persons-cell{white-space:normal;word-break:break-word;max-width:180px;line-height:1.4;}
+.sum-card{border:1px solid var(--line);border-radius:10px;padding:14px 18px;background:var(--surface);transition:background .3s;}
+.sum-card .sc-label{font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+.sum-card .sc-value{font-family:'DM Serif Display',serif;font-size:24px;color:var(--text);}
+.sum-card.orange{border-color:var(--meal-border);background:var(--meal-light);}
+.sum-card.orange .sc-value{color:var(--meal);}
+.sum-card.blue{border-color:var(--trans-border);background:var(--trans-light);}
+.sum-card.blue .sc-value{color:var(--trans);}
+
+/* ── MODAL ───────────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px;}
+.modal-overlay.active{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:16px;max-width:820px;width:100%;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,0.5);}
+.modal-header{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.modal-header h3{font-family:'DM Serif Display',serif;font-size:17px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:4px;border-radius:6px;transition:color .15s;}
+.modal-close:hover{color:var(--text);}
+.modal-body{padding:18px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px;}
+.conf-bar{display:flex;align-items:center;gap:10px;padding:9px 13px;border-radius:8px;background:var(--surface2);font-size:12px;color:var(--text2);}
+.conf-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.conf-HIGH .conf-dot{background:var(--ok);}
+.conf-MEDIUM .conf-dot{background:var(--warn);}
+.conf-LOW .conf-dot{background:var(--err);}
+.receipt-viewer{position:relative;overflow:hidden;border-radius:10px;border:1px solid var(--line);background:var(--surface3);cursor:zoom-in;min-height:180px;max-height:400px;display:flex;align-items:center;justify-content:center;}
+.receipt-viewer.zoomed{cursor:grab;max-height:460px;}
+.receipt-viewer.zoomed:active{cursor:grabbing;}
+.receipt-viewer img{max-width:100%;max-height:400px;object-fit:contain;display:block;transition:transform .15s;transform-origin:0 0;user-select:none;pointer-events:none;}
+.zoom-hint{position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.65);color:#fff;font-size:11px;padding:3px 9px;border-radius:20px;pointer-events:none;}
+.modal-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.mf-group{display:flex;flex-direction:column;gap:4px;}
+.mf-group.full{grid-column:1/-1;}
+.mf-group label{font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);}
+.mf-group input{border:1.5px solid var(--line);border-radius:8px;padding:8px 11px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);background:var(--surface2);width:100%;-moz-appearance:textfield;}
+.mf-group input[type=number]::-webkit-outer-spin-button,.mf-group input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
+.mf-group input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(232,99,10,0.12);}
+.mf-group input.total-inp{font-size:20px;font-weight:700;color:var(--ok);border-color:var(--ok);}
+.mf-group input.total-inp.edited{color:var(--text2);border-color:var(--line);}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;padding:13px 22px;border-top:1px solid var(--line);}
+.btn-accept{background:var(--ok);color:#fff;border:none;border-radius:8px;padding:9px 22px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s;}
+.btn-accept:hover{opacity:0.85;}
+
+/* ── CHIPS ───────────────────────────────────────────── */
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;letter-spacing:0.05em;}
+.chip-ok{background:var(--ok-bg);color:var(--ok);}
+.chip-warn{background:var(--warn-bg);color:var(--warn);}
+.chip-err{background:var(--err-bg);color:var(--err);}
+.chip-adjusted{background:var(--ok-bg);color:var(--ok);}
+
+/* ── THEME TOGGLE ────────────────────────────────────── */
+.theme-toggle-bar{position:fixed;bottom:0;left:0;right:0;background:var(--header-bg);border-top:1px solid var(--line);padding:10px 24px;display:flex;align-items:center;justify-content:center;gap:14px;z-index:50;}
+.theme-toggle-bar span{font-size:12px;color:var(--muted);}
+.toggle-switch{position:relative;width:44px;height:24px;cursor:pointer;}
+.toggle-switch input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;inset:0;background:var(--surface3);border-radius:24px;transition:background .3s;}
+.toggle-slider:before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:var(--muted);border-radius:50%;transition:transform .3s,background .3s;}
+input:checked + .toggle-slider{background:var(--orange);}
+input:checked + .toggle-slider:before{transform:translateX(20px);background:#fff;}
+
+/* ── UTILS ───────────────────────────────────────────── */
+.flex-between{display:flex;align-items:center;justify-content:space-between;}
+.mt-4{margin-top:14px;}
+.mt-6{margin-top:22px;}
+.text-muted{color:var(--muted);}
+.text-sm{font-size:12px;}
+.spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,0.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+@media(max-width:640px){
+  .upload-row,.form-grid,.modal-fields,.summary-grid{grid-template-columns:1fr;}
+  header{padding:0 16px;}
+  main{padding:24px 16px 100px;}
+  .card{padding:18px 20px;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">AP <span>Live</span> Receipt Reimbursement</div>
+  <div class="header-tag">Expense Processing</div>
+  <label class="ics-drop" id="icsDrop" title="Drop a calendar .ics file to auto-fill job details">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Import .ics
+    <input type="file" id="icsFileInput" accept=".ics,text/calendar">
+  </label>
+</header>
+<div class="ics-toast" id="icsToast"></div>
+
+<main>
+
+<!-- ── STEP 1 ──────────────────────────────────────── -->
+<div class="section-label">Step 1</div>
+<h2>Job Information</h2>
+<p class="section-desc">Fill in your details below. Auto-filled fields update automatically — you can still edit them if needed.</p>
+
+<div class="card">
+  <div class="card-title"><span class="dot"></span>Invoice &amp; Contact Details</div>
+  <div class="form-grid">
+
+    <!-- Row 1: Date Submitted | Job # -->
+    <div class="form-group">
+      <div class="label-row"><label for="dateSubmitted">Date Submitted <span class="auto-badge">⚡ Auto</span></label></div>
+      <input type="text" id="dateSubmitted" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label for="apJobNum">AP Live Job #</label>
+      <input type="text" id="apJobNum" name="ap-job-number" autocomplete="off" placeholder="e.g. 26009">
+    </div>
+
+    <!-- Row 2: Full Name -->
+    <div class="form-group full">
+      <label for="userName">Full Name</label>
+      <input type="text" id="userName" name="name" autocomplete="name" placeholder="First Last">
+    </div>
+
+    <!-- Row 3: Company Name | Company Invoice # -->
+    <div class="form-group">
+      <label for="companyName">Company Name <span style="font-size:9px;font-weight:400;text-transform:none;letter-spacing:0;">(if applicable)</span></label>
+      <input type="text" id="companyName" name="organization" autocomplete="organization" placeholder="LLC, Inc, etc.">
+    </div>
+    <div class="form-group">
+      <div class="label-row"><label for="companyInvoice">Company Invoice # <span class="auto-badge">⚡ Auto</span></label></div>
+      <input type="text" id="companyInvoice" class="autofilled" placeholder="From program start date" autocomplete="off" oninput="onInvoiceManualEdit()">
+    </div>
+
+    <!-- Row 4: Address -->
+    <div class="form-group full">
+      <label for="userAddress">Address</label>
+      <input type="text" id="userAddress" name="street-address" autocomplete="street-address" placeholder="123 Main Street">
+    </div>
+
+    <!-- Row 5: City | State | Zip -->
+    <div class="form-group full" style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;">
+      <div class="form-group" style="margin:0;">
+        <label for="userCity">City</label>
+        <input type="text" id="userCity" name="city" autocomplete="address-level2" placeholder="Nashville">
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label for="userState">State</label>
+        <input type="text" id="userState" name="state" autocomplete="address-level1" placeholder="TN">
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label for="userZip">Zip</label>
+        <input type="text" id="userZip" name="postal-code" autocomplete="postal-code" placeholder="90210">
+      </div>
+    </div>
+
+    <!-- Row 6: Program Name -->
+    <div class="form-group full">
+      <label for="programName">Program Name</label>
+      <input type="text" id="programName" autocomplete="off" placeholder="e.g. Acme Corp Annual Summit">
+    </div>
+
+    <!-- Row 7: Program Dates | Location -->
+    <div class="form-group">
+      <label for="programDates">Program Dates</label>
+      <input type="text" id="programDates" autocomplete="off" placeholder="e.g. 20 Feb 2026 – 27 Feb 2026" oninput="onProgramDatesChange()" onblur="normalizeProgramDates()">
+    </div>
+    <div class="form-group">
+      <label for="locationCity">Location (City)</label>
+      <input type="text" id="locationCity" autocomplete="off" placeholder="e.g. San Diego">
+    </div>
+
+    <!-- Row 8: Venue -->
+    <div class="form-group full">
+      <label for="venue">Venue</label>
+      <input type="text" id="venue" autocomplete="off" placeholder="e.g. Marriott Marquis">
+    </div>
+
+    <!-- Row 9: Day Rate | Days Worked | Per Diem (three columns) -->
+    <div class="form-group full" style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:12px;">
+      <div class="form-group" style="margin:0;">
+        <label for="dayRate">Day Rate ($)</label>
+        <input type="number" id="dayRate" autocomplete="off" placeholder="" min="0" step="0.01">
+      </div>
+      <div class="form-group" style="margin:0;">
+        <div class="label-row">
+          <label for="daysWorked">Days Worked</label>
+          <span id="daysWarning" class="inline-error" style="display:none;font-size:10px;"></span>
+        </div>
+        <input type="number" id="daysWorked" autocomplete="off" placeholder="" min="1" max="90" oninput="checkDaysMismatch()">
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label>Per Diem</label>
+        <div class="check-row" id="perdiem-row" style="height:auto;padding:8px 12px;">
+          <input type="checkbox" id="perdiemEnabled" onchange="togglePerdiem()">
+          <label for="perdiemEnabled" style="font-size:13px;font-weight:500;text-transform:none;letter-spacing:0;">Enable</label>
+          <div class="perdiem-amount">
+            <span>$</span>
+            <input type="number" id="perdiemRate" value="125" min="0" step="0.01" disabled placeholder="125">
+            <span style="color:var(--muted);font-size:12px;">/ day</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ── STEP 2 ──────────────────────────────────────── -->
+<div class="section-label">Step 2</div>
+<h2>Upload Receipts</h2>
+<p class="section-desc">Drop all your receipts here — meals and transportation together. Claude Vision reads each one and automatically sorts them into the right category.</p>
+
+<div class="drop-zone" id="mainDrop" style="border-color:var(--line);padding:44px 28px 36px;">
+  <input type="file" id="mainInput" multiple accept="image/*,.pdf,.heic" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
+  <div style="pointer-events:none;">
+    <div style="font-size:42px;margin-bottom:16px;letter-spacing:8px;line-height:1;">⬆️ 🍽️ 🚕</div>
+    <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--text);margin-bottom:8px;">
+      Drop Your Receipts Here
+      <span id="totalCount" style="display:none;background:var(--orange);color:#fff;border-radius:11px;font-size:12px;font-weight:700;padding:1px 8px;margin-left:8px;vertical-align:middle;font-family:'DM Sans',sans-serif;"></span>
+    </div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:6px;">Meals &amp; transportation — we'll sort them automatically</div>
+    <div style="font-size:12px;color:var(--muted);">JPG · PNG · PDF · HEIC · All receipts welcome</div>
+  </div>
+  <div class="file-list" id="mainFileList" style="pointer-events:auto;position:relative;z-index:3;"></div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ── STEP 3 ──────────────────────────────────────── -->
+<div class="section-label">Step 3</div>
+<h2>Process &amp; Export</h2>
+<p class="section-desc">Claude Vision reads every receipt and sorts everything chronologically. Any receipt returning $0.00 or flagged low-confidence will pause for your review.</p>
+
+<div class="card">
+  <div class="flex-between" style="flex-wrap:wrap;gap:14px;">
+    <button class="btn-primary" id="processBtn" onclick="startProcessing()">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      Process Invoice
+    </button>
+    <span class="text-muted text-sm">Receipt images are sent to Claude Vision API — all other processing is local</span>
+  </div>
+  <div class="progress-area mt-6" id="progressArea">
+    <div class="flex-between" style="margin-bottom:5px;">
+      <span class="text-sm" id="progressLabel">Initializing...</span>
+      <span class="text-sm text-muted" id="progressPct">0%</span>
+    </div>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill"></div></div>
+    <div class="progress-log" id="progressLog"></div>
+  </div>
+</div>
+
+<!-- ── RESULTS ─────────────────────────────────────── -->
+<div class="results-section" id="resultsSection">
+  <div class="divider"></div>
+  <div class="section-label">Results</div>
+  <h2>Review &amp; Export</h2>
+  <p class="section-desc">Receipts are sorted chronologically. Edit any row before downloading. All totals update live.</p>
+
+  <div class="summary-grid" id="summaryGrid" style="grid-template-columns:repeat(3,1fr);">
+    <div class="sum-card orange"><div class="sc-label">&#127374; Meals Total</div><div class="sc-value" id="sumMeals">$0.00</div></div>
+    <div class="sum-card blue"><div class="sc-label">&#128661; Transportation Total</div><div class="sc-value" id="sumTransport">$0.00</div></div>
+    <div class="sum-card"><div class="sc-label">Grand Total</div><div class="sc-value" id="sumGrand">$0.00</div></div>
+    <div class="sum-card" id="sumOverageCard" style="display:none;border-color:var(--warn);background:var(--warn-bg);"><div class="sc-label" style="color:var(--warn);">Overage Total</div><div class="sc-value" id="sumOverage" style="color:var(--warn);">$0.00</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>Meal Expenses</div>
+    <div class="result-table-wrap">
+      <table><thead><tr><th>#</th><th>Date</th><th>Vendor</th><th style="min-width:120px;white-space:normal;">Persons</th><th>Total</th><th>Status</th><th></th></tr></thead>
+      <tbody id="mealsBody"></tbody>
+      <tfoot><tr class="table-total-row">
+        <td colspan="4" style="text-align:right;font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;">Meals Total</td>
+        <td class="total-cell" id="mealsTotalCell">$0.00</td><td colspan="2"></td>
+      </tr></tfoot></table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--trans)"></span>Transportation Expenses</div>
+    <div class="result-table-wrap">
+      <table><thead><tr><th>#</th><th>Date</th><th>Location</th><th>Description</th><th>Total</th><th>Status</th><th></th></tr></thead>
+      <tbody id="transportBody"></tbody>
+      <tfoot><tr class="table-total-row">
+        <td colspan="4" style="text-align:right;font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;">Transport Total</td>
+        <td class="total-cell" id="transportTotalCell">$0.00</td><td colspan="2"></td>
+      </tr></tfoot></table>
+    </div>
+  </div>
+
+  <!-- Overage table — hidden until there are overages -->
+  <div class="card" id="overageSection" style="display:none;border-color:var(--warn);background:var(--warn-bg);">
+    <div class="card-title" style="border-color:var(--warn);"><span class="dot" style="background:var(--warn);"></span>Non-Billable Overage</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">These amounts exceed daily meal limits and are not included in your invoice. Shown here for your records only.</p>
+    <div class="result-table-wrap">
+      <table><thead><tr><th>Date</th><th>Vendor</th><th>Persons</th><th>Receipt Total</th><th>Invoiced</th><th style="color:var(--warn);">Overage</th></tr></thead>
+      <tbody id="overageBody"></tbody>
+      <tfoot><tr class="table-total-row">
+        <td colspan="5" style="text-align:right;font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;">Total Overage</td>
+        <td class="total-cell" id="overageTotalCell" style="color:var(--warn);">$0.00</td>
+      </tr></tfoot></table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>Export Files</div>
+    <div class="dl-row">
+      <button class="btn-dl orange" onclick="downloadExcel()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download Excel
+      </button>
+      <button class="btn-dl" id="pdfBtn" onclick="downloadReceiptPDF()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download Receipts PDF
+      </button>
+      <button class="btn-dl" onclick="openGoogleSheets()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        Open in Google Sheets
+      </button>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- ── REVIEW MODAL ────────────────────────────────── -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="modalTitle">Review Receipt</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="conf-bar" id="confBar"><div class="conf-dot"></div><span id="confText">Confidence: High</span></div>
+      <div class="receipt-viewer" id="receiptViewer">
+        <img id="modalImg" src="" alt="Receipt">
+        <div class="zoom-hint" id="zoomHint">Click to zoom · Drag to pan</div>
+      </div>
+      <div class="modal-fields" id="modalFields"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-accept">✓ Accept &amp; Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── THEME TOGGLE BAR ────────────────────────────── -->
+<div class="theme-toggle-bar">
+  <span>🌙 Dark</span>
+  <label class="toggle-switch">
+    <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
+    <span class="toggle-slider"></span>
+  </label>
+  <span>☀️ Light</span>
+</div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════╗
+// ║  AP LIVE RECEIPT REIMBURSEMENT                           ║
+// ╚══════════════════════════════════════════════════════════╝
+
+// API key is handled server-side via /api/vision proxy (Vercel env var)
+const MODEL = 'claude-sonnet-4-6';
+// Fallback chain — tried in order if primary returns 404 (model deprecated)
+const MODEL_FALLBACKS = ['claude-sonnet-4-5', 'claude-haiku-4-5-20251001'];
+
+// ── EMBEDDED TEMPLATE (base64) ──────────────────────────────
+const TEMPLATE_B64 = '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';
+
+function b64ToArrayBuffer(b64) {
+  const bin = atob(b64);
+  const buf = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+  return buf.buffer;
+}
+
+// ── STATE ────────────────────────────────────────────────────
+let allFiles=[], mealsResults=[], transportResults=[], overageResults=[];
+let modalResolve=null, modalOriginalTotal=null;
+let isZoomed=false, dragStart=null, panOffset={x:0,y:0};
+let invoiceManuallyEdited=false;
+
+// ── MEAL BUDGETS (per contractor per day) ─────────────────────
+const MEAL_BUDGETS = { breakfast:40, lunch:50, dinner:100 };
+const MEAL_KEYWORDS = {
+  breakfast: ['breakfast','coffee','cafe','café','bagel','bakery','pastry','espresso','latte','cappuccino','brunch','diner','ihop','waffle','pancake','toast'],
+  lunch: ['lunch','sandwich','deli','sub','burrito','taco','sushi','noodle','ramen','pho','salad'],
+  dinner: ['dinner','bar','grill','steakhouse','bistro','brasserie','tavern','pub','lounge','restaurant','seafood','steak','chop house','happy hour','dessert','ice cream','gelato','bakery']
+};
+// Time-based meal detection (minutes from midnight)
+function detectMealTypeByTime(mins) {
+  if (mins < 0) return null;
+  if (mins >= 360 && mins < 660)  return 'breakfast'; // 6am–11am
+  if (mins >= 660 && mins < 900)  return 'lunch';     // 11am–3pm
+  if (mins >= 900 && mins < 1080) return null;        // 3pm–6pm ambiguous
+  if (mins >= 1080 || mins < 360) return 'dinner';    // 6pm+ or late night
+  return null;
+}
+function detectMealType(vendor, timeMins, filename) {
+  const text = ((vendor||'') + ' ' + (filename||'')).toLowerCase();
+  // Check breakfast keywords first (most specific)
+  for (const kw of MEAL_KEYWORDS.breakfast) { if (text.includes(kw)) return 'breakfast'; }
+  // Check lunch
+  for (const kw of MEAL_KEYWORDS.lunch) { if (text.includes(kw)) return 'lunch'; }
+  // Check dinner (also covers dessert, bar, etc.)
+  for (const kw of MEAL_KEYWORDS.dinner) { if (text.includes(kw)) return 'dinner'; }
+  // Fall back to time
+  return detectMealTypeByTime(timeMins);
+}
+
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS_SHORT=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+
+// ── INIT ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.getElementById('dateSubmitted').value = fmtDate(new Date());
+  setupDrop('mainDrop');
+  document.getElementById('mainInput').addEventListener('change', e=>addFiles(e.target.files));
+  setupZoom();
+
+  // ── ICS drop zone ────────────────────────────────────────────
+  const icsDrop = document.getElementById('icsDrop');
+  const icsInput = document.getElementById('icsFileInput');
+
+  icsInput.addEventListener('change', e => {
+    if (e.target.files[0]) handleICSFile(e.target.files[0]);
+    icsInput.value = ''; // reset so same file can be re-imported
+  });
+
+  // Drag over header — highlight drop zone
+  icsDrop.addEventListener('dragover', e => { e.preventDefault(); icsDrop.classList.add('drag-over'); });
+  icsDrop.addEventListener('dragleave', () => icsDrop.classList.remove('drag-over'));
+  icsDrop.addEventListener('drop', e => {
+    e.preventDefault();
+    icsDrop.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handleICSFile(file);
+  });
+  // Escape key handling is per-modal (no global escape close)
+  // Theme: dark by default
+  document.getElementById('themeToggle').checked = false; // unchecked = dark (default)
+  // Title Case on blur for relevant fields
+  ['userName','companyName','userAddress','userCity','programName','locationCity','venue'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('blur',()=>{ if(el.value) el.value=toTitleCase(el.value); });
+  });
+  // State: uppercase on blur
+  const stateEl=document.getElementById('userState');
+  if(stateEl) stateEl.addEventListener('blur',()=>{ if(stateEl.value) stateEl.value=stateEl.value.trim().toUpperCase(); });
+});
+
+// ── THEME ─────────────────────────────────────────────────────
+function toggleTheme() {
+  const isLight = document.getElementById('themeToggle').checked;
+  document.documentElement.setAttribute('data-theme', isLight ? 'light' : 'dark');
+}
+
+// ── DATE HELPERS ──────────────────────────────────────────────
+function fmtDate(d) {
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// ── RECEIPT MATH VERIFICATION ────────────────────────────────
+// If Vision returned subtotal/tax/tip, verify they add up to the total.
+
+// Sanity-check a Vision-returned date string.
+// If the year is more than 13 months in the past or 2 months in the future,
+// it's almost certainly a misread — replace the year with the most plausible one.
+function sanitizeReceiptDate(dateStr) {
+  if (!dateStr || !dateStr.trim()) return dateStr;
+  const str = dateStr.trim();
+  // Must be in "D Month YYYY" format at this point
+  const m = str.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  if (!m) return str; // Can't parse — leave as-is
+  const day = parseInt(m[1]);
+  const moIdx = MONTHS.findIndex(mo => mo.toLowerCase() === m[2].toLowerCase());
+  const year = parseInt(m[3]);
+  if (moIdx < 0) return str;
+  const today = new Date();
+  const parsed = new Date(year, moIdx, day);
+  const msInMonth = 1000 * 60 * 60 * 24 * 30.5;
+  const monthsAgo = (today - parsed) / msInMonth;
+  const monthsAhead = (parsed - today) / msInMonth;
+  // If date is within the plausible window, return as-is
+  if (monthsAgo <= 13 && monthsAhead <= 2) return str;
+  // Otherwise find the nearest year that puts it in the window
+  // Try current year first, then previous year
+  for (const tryYear of [today.getFullYear(), today.getFullYear()-1, today.getFullYear()+1]) {
+    const candidate = new Date(tryYear, moIdx, day);
+    const ago = (today - candidate) / msInMonth;
+    const ahead = (candidate - today) / msInMonth;
+    if (ago <= 13 && ahead <= 2) return fmtDate(candidate);
+  }
+  // Fallback — use previous year
+  return fmtDate(new Date(today.getFullYear()-1, moIdx, day));
+}
+
+
+function dateFromFilename(fn) {
+  // Match YYYYMMDD at start (optionally preceded by T or other letter)
+  const m = fn.match(/^[A-Za-z]?(\d{4})(\d{2})(\d{2})/);
+  if (!m) return '';
+  const y=parseInt(m[1]),mo=parseInt(m[2])-1,d=parseInt(m[3]);
+  if (mo<0||mo>11||d<1||d>31) return '';
+  return fmtDate(new Date(y,mo,d));
+}
+
+// ── SMART YEAR INFERENCE ─────────────────────────────────────
+// If a parsed date is more than 60 days in the future, assume last year.
+// Today is April 1 2026 — so Nov/Dec/Jan etc will resolve to 2025.
+function smartYear(month0, day, explicitYear) {
+  if (explicitYear) return explicitYear;
+  const today = new Date();
+  const thisYear = today.getFullYear();
+  const candidate = new Date(thisYear, month0, day);
+  const msInDay = 1000*60*60*24;
+  if ((candidate - today) / msInDay > 60) return thisYear - 1;
+  return thisYear;
+}
+
+// ── NUMERIC DATE PARSER ───────────────────────────────────────
+// Converts "11/2", "11/2/26", "11/2/2026" into {month0, day, year}
+// Returns null if ambiguous or invalid.
+function parseNumericDate(token) {
+  token = token.trim();
+  // M/D/YY or M/D/YYYY
+  let m = token.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (m) {
+    const mo = +m[1]-1, d = +m[2];
+    let y = +m[3];
+    if (y < 100) y += 2000;
+    if (mo>=0&&mo<=11&&d>=1&&d<=31) return {month0:mo, day:d, year:y};
+  }
+  // M/D (no year)
+  m = token.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (m) {
+    const mo = +m[1]-1, d = +m[2];
+    if (mo>=0&&mo<=11&&d>=1&&d<=31) return {month0:mo, day:d, year:null};
+  }
+  return null;
+}
+
+function parseProgramDates(str) {
+  if (!str) return null;
+  str = str.trim();
+  const dates = [];
+
+  // ── Look for explicit 4-digit year anywhere ──────────────────
+  const allYears = [...str.matchAll(/\b(20\d{2})\b/g)];
+  const explicitYear = allYears.length ? parseInt(allYears[allYears.length-1][1]) : null;
+
+  // ── NUMERIC PATTERNS ─────────────────────────────────────────
+  // "11/2-4"  →  Nov 2–4
+  let m = str.match(/^(\d{1,2})\/(\d{1,2})\s*[–—\-]\s*(\d{1,2})(?:\/(\d{2,4}))?$/);
+  if (m) {
+    const mo=+m[1]-1, d1=+m[2], d2=+m[3];
+    let y = m[4] ? (+m[4]<100 ? +m[4]+2000 : +m[4]) : null;
+    if (mo>=0&&mo<=11&&d1>=1&&d1<=31&&d2>=1&&d2<=31) {
+      dates.push(new Date(smartYear(mo,d1,explicitYear||y),mo,d1));
+      dates.push(new Date(smartYear(mo,d2,explicitYear||y),mo,d2));
+    }
+  }
+
+  // "11/2 - 11/4" or "11/2/26 - 11/4/26"
+  const numRangeRe = /(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*[–—\-]\s*(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/g;
+  while ((m=numRangeRe.exec(str))!==null) {
+    const a=parseNumericDate(m[1]), b=parseNumericDate(m[2]);
+    if (a) dates.push(new Date(smartYear(a.month0,a.day,explicitYear||a.year), a.month0, a.day));
+    if (b) dates.push(new Date(smartYear(b.month0,b.day,explicitYear||b.year), b.month0, b.day));
+  }
+
+  // Individual numeric "11/2", "11/4/26"
+  const numSingleRe = /\b(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\b/g;
+  while ((m=numSingleRe.exec(str))!==null) {
+    const a=parseNumericDate(m[1]);
+    if (a) dates.push(new Date(smartYear(a.month0,a.day,explicitYear||a.year), a.month0, a.day));
+  }
+
+  // ── TEXT MONTH PATTERNS ───────────────────────────────────────
+  // FIX: use (?<!\d) before day digits and (?!\d) after, so we never
+  // match digits that are part of a 4-digit year (e.g. "2025" → "25").
+
+  // "20–27 Feb 2026" or "20-27 Feb" — two day numbers then month
+  const sameMonRe = /(?<!\d)(\d{1,2})(?!\d)\s*[–—\-]\s*(?<!\d)(\d{1,2})(?!\d)\s+([A-Za-z]{3,})(?:\s+(20\d{2}))?/g;
+  while ((m=sameMonRe.exec(str))!==null) {
+    const mi=MONTHS_SHORT.indexOf(m[3].toLowerCase().slice(0,3));
+    if (mi<0) continue;
+    const ey=m[4]?parseInt(m[4]):null;
+    dates.push(new Date(smartYear(mi,+m[1],explicitYear||ey), mi, +m[1]));
+    dates.push(new Date(smartYear(mi,+m[2],explicitYear||ey), mi, +m[2]));
+  }
+
+  // "Feb 20–27" — month then two day numbers
+  const monSameRe = /([A-Za-z]{3,})\s+(?<!\d)(\d{1,2})(?!\d)\s*[–—\-]\s*(?<!\d)(\d{1,2})(?!\d)(?:\s+(20\d{2}))?/g;
+  while ((m=monSameRe.exec(str))!==null) {
+    const mi=MONTHS_SHORT.indexOf(m[1].toLowerCase().slice(0,3));
+    if (mi<0) continue;
+    const ey=m[4]?parseInt(m[4]):null;
+    dates.push(new Date(smartYear(mi,+m[2],explicitYear||ey), mi, +m[2]));
+    dates.push(new Date(smartYear(mi,+m[3],explicitYear||ey), mi, +m[3]));
+  }
+
+  // "2 November 2025" — individual D Month YYYY
+  // Day must not be part of a larger number (not preceded/followed by digit)
+  const dmRe = /(?:^|(?<=[\s–—\-]))(\d{1,2})(?!\d)\s+([A-Za-z]{3,})(?:\s+(20\d{2}))?/g;
+  while ((m=dmRe.exec(str))!==null) {
+    const mi=MONTHS_SHORT.indexOf(m[2].toLowerCase().slice(0,3));
+    if (mi<0) continue;
+    const ey=m[3]?parseInt(m[3]):null;
+    dates.push(new Date(smartYear(mi,+m[1],explicitYear||ey), mi, +m[1]));
+  }
+
+  // "November 2" — individual Month D
+  // Day must be 1-2 digits NOT followed by more digits (avoids "November 2025" → day=20)
+  const mdRe = /([A-Za-z]{3,})\s+(?<!\d)(\d{1,2})(?!\d)(?:\s+(20\d{2}))?/g;
+  while ((m=mdRe.exec(str))!==null) {
+    const mi=MONTHS_SHORT.indexOf(m[1].toLowerCase().slice(0,3));
+    if (mi<0) continue;
+    const day=+m[2];
+    if (day<1||day>31) continue;
+    const ey=m[3]?parseInt(m[3]):null;
+    dates.push(new Date(smartYear(mi,day,explicitYear||ey), mi, day));
+  }
+
+  if (!dates.length) return null;
+  // Deduplicate and sort
+  const unique = [...new Map(dates.map(d=>[d.getTime(),d])).values()];
+  unique.sort((a,b)=>a-b);
+  return { start: unique[0], end: unique[unique.length-1] };
+}
+
+// ── NORMALIZE PROGRAM DATES ON BLUR ──────────────────────────
+// Reformats whatever was typed into "2 March 2026 – 9 March 2026"
+function normalizeProgramDates() {
+  const el = document.getElementById('programDates');
+  const raw = el.value.trim();
+  if (!raw) return;
+  const result = parseProgramDates(raw);
+  if (!result) return; // Can't parse — leave as-is, don't confuse user
+  const start = result.start, end = result.end;
+  const fmt = d => `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  // If same day, just show one date
+  if (start.getTime() === end.getTime()) {
+    el.value = fmt(start);
+  } else {
+    el.value = `${fmt(start)} – ${fmt(end)}`;
+  }
+  // Re-trigger invoice + days check with the clean value
+  onProgramDatesChange();
+}
+
+function onProgramDatesChange() {
+  if (!invoiceManuallyEdited) {
+    const str = document.getElementById('programDates').value.trim();
+    const result = parseProgramDates(str);
+    if (result) {
+      const y=result.start.getFullYear(), m=String(result.start.getMonth()+1).padStart(2,'0'), d=String(result.start.getDate()).padStart(2,'0');
+      const el=document.getElementById('companyInvoice');
+      el.value=`${y}${m}${d}`;
+      el.classList.add('autofilled');
+    } else {
+      document.getElementById('companyInvoice').value='';
+    }
+  }
+  checkDaysMismatch();
+}
+
+function onInvoiceManualEdit() {
+  invoiceManuallyEdited = true;
+  document.getElementById('companyInvoice').classList.remove('autofilled');
+}
+
+function checkDaysMismatch() {
+  const daysVal = parseInt(document.getElementById('daysWorked').value)||0;
+  const warn = document.getElementById('daysWarning');
+  if (!daysVal) { warn.style.display='none'; return; }
+  const datesStr = document.getElementById('programDates').value;
+  const result = parseProgramDates(datesStr);
+  if (!result) { warn.style.display='none'; return; }
+  // Inclusive calendar days
+  const diffMs = result.end - result.start;
+  const calDays = Math.round(diffMs/(1000*60*60*24)) + 1;
+  if (daysVal !== calDays) {
+    warn.textContent = `(${calDays} calendar days in range)`;
+    warn.style.display='inline';
+  } else {
+    warn.style.display='none';
+  }
+}
+
+// ── PER DIEM ──────────────────────────────────────────────────
+function togglePerdiem() {
+  const enabled = document.getElementById('perdiemEnabled').checked;
+  document.getElementById('perdiemRate').disabled = !enabled;
+  document.getElementById('perdiem-row').classList.toggle('active', enabled);
+}
+
+function getPerDiemEntries() {
+  if (!document.getElementById('perdiemEnabled').checked) return [];
+  const rate = parseFloat(document.getElementById('perdiemRate').value)||125;
+  const city = toTitleCase(document.getElementById('locationCity').value||'');
+  const lastName = getLastName();
+
+  // Use Days Worked as the count — more reliable than date math
+  const daysWorked = parseInt(document.getElementById('daysWorked').value)||0;
+  const datesStr = document.getElementById('programDates').value;
+  const result = parseProgramDates(datesStr);
+
+  // Need either a days-worked count or a date range to proceed
+  if (!daysWorked && !result) return [];
+
+  const count = daysWorked || (result ? Math.round((result.end-result.start)/(1000*60*60*24))+1 : 0);
+  const startDate = result ? new Date(result.start) : new Date();
+  if (count < 1) return [];
+
+  const entries = [];
+  for (let i = 0; i < count; i++) {
+    const cur = new Date(startDate);
+    cur.setDate(cur.getDate() + i);
+    entries.push({
+      date: fmtDate(cur),
+      vendor: `Per Diem${city?' - '+city:''}`,
+      persons: lastName||'',
+      total: rate,
+      confidence: 'HIGH',
+      isPerdiem: true,
+      sortTs: cur.getTime() + (12*60*60*1000)
+    });
+  }
+  return entries;
+}
+
+function getLastName() {
+  const name = document.getElementById('userName').value.trim();
+  if (!name) return '';
+  const parts = name.split(/\s+/);
+  // Last space-delimited token — naturally handles "Romero-Andrade" as one token
+  return parts.length >= 2 ? parts[parts.length-1] : parts[0];
+}
+
+// ── FILE MANAGEMENT ───────────────────────────────────────────
+function setupDrop(id) {
+  const z=document.getElementById(id);
+  z.addEventListener('dragover', e=>{e.preventDefault();z.classList.add('dragover');});
+  z.addEventListener('dragleave', ()=>z.classList.remove('dragover'));
+  z.addEventListener('drop', e=>{e.preventDefault();z.classList.remove('dragover');addFiles(e.dataTransfer.files);});
+}
+
+function addFiles(list) {
+  Array.from(list).forEach(f=>{
+    if(!allFiles.find(x=>x.file.name===f.name)) allFiles.push({file:f, category:'pending'});
+  });
+  renderFileList();
+}
+
+function renderFileList() {
+  const listEl=document.getElementById('mainFileList');
+  const countEl=document.getElementById('totalCount');
+  listEl.innerHTML='';
+  allFiles.forEach((item,i)=>{
+    const icon = item.category==='meals'?'🍽️':item.category==='transport'?'🚕':'⏳';
+    const catLabel = item.category==='meals'?'Meal':item.category==='transport'?'Transport':'Pending';
+    const el=document.createElement('div'); el.className='file-item';
+    el.innerHTML=`<span style="font-size:16px;flex-shrink:0;width:22px;text-align:center;">${icon}</span><span class="fi-name" title="${item.file.name}">${item.file.name}</span><span style="font-size:11px;color:var(--muted);flex-shrink:0;">${catLabel}</span><button class="fi-remove" onclick="removeFile(${i})">✕</button>`;
+    listEl.appendChild(el);
+  });
+  countEl.textContent=allFiles.length;
+  countEl.style.display=allFiles.length?'inline-flex':'none';
+}
+
+function removeFile(idx){
+  allFiles.splice(idx,1);
+  renderFileList();
+}
+
+function updateFileCategory(idx, cat) {
+  if(allFiles[idx]) allFiles[idx].category=cat;
+  renderFileList();
+}
+
+function fileIcon(n){const e=n.split('.').pop().toLowerCase();return e==='pdf'?'📄':['jpg','jpeg','png','webp','heic'].includes(e)?'🖼️':'📎';}
+
+// ── IMAGE PROCESSING ──────────────────────────────────────────
+async function fileToImg(file) {
+  const ext=file.name.split('.').pop().toLowerCase();
+  if (ext==='pdf') return pdfToImgs(file);
+  return [await imgResize(file)];
+}
+
+async function imgResize(file) {
+  return new Promise((res,rej)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const W=img.width, H=img.height;
+        const longEdge=Math.max(W,H), shortEdge=Math.min(W,H);
+        // Tall receipts (aspect ratio > 3:1, e.g. side-by-side double receipts or
+        // very long itemized bills) get a higher long-edge cap so text stays readable.
+        const isTall = shortEdge > 0 && (longEdge / shortEdge) > 3;
+        const longEdgeCap = isTall ? 4000 : 2400;
+        const scByShort = shortEdge > 0 ? Math.min(1, 600/shortEdge) : 1;
+        const scByLong  = longEdge  > 0 ? Math.min(1, longEdgeCap/longEdge) : 1;
+        const sc = Math.min(1, Math.max(scByShort, scByLong));
+        const w=Math.round(W*sc), h=Math.round(H*sc);
+        const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        const dataUrl=cv.toDataURL('image/jpeg',0.80);
+        res({b64:dataUrl.split(',')[1],dataUrl,mime:'image/jpeg',w,h});
+      };
+      img.onerror=rej; img.src=e.target.result;
+    };
+    reader.onerror=rej; reader.readAsDataURL(file);
+  });
+}
+
+async function pdfToImgs(file) {
+  const pdfjsLib=window['pdfjs-dist/build/pdf'];
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  const imgs=[];
+  for (let i=1;i<=pdf.numPages;i++){
+    const page=await pdf.getPage(i);
+    const vp=page.getViewport({scale:1.8});
+    const cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
+    await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+    const longEdge=Math.max(cv.width,cv.height), shortEdge=Math.min(cv.width,cv.height);
+    const isTall = shortEdge > 0 && (longEdge / shortEdge) > 3;
+    const longEdgeCap = isTall ? 4000 : 2400;
+    const scByShort = shortEdge>0 ? Math.min(1,600/shortEdge) : 1;
+    const scByLong  = longEdge>0  ? Math.min(1,longEdgeCap/longEdge) : 1;
+    const sc = Math.min(1, Math.max(scByShort, scByLong));
+    let finalCv=cv;
+    if(sc<1){
+      finalCv=document.createElement('canvas');
+      finalCv.width=Math.round(cv.width*sc); finalCv.height=Math.round(cv.height*sc);
+      finalCv.getContext('2d').drawImage(cv,0,0,finalCv.width,finalCv.height);
+    }
+    const dataUrl=finalCv.toDataURL('image/jpeg',0.80);
+    imgs.push({b64:dataUrl.split(',')[1],dataUrl,mime:'image/jpeg',w:finalCv.width,h:finalCv.height});
+  }
+  return imgs;
+}
+
+// ── FILENAME PARSING ──────────────────────────────────────────
+function toTitleCase(s) {
+  if(!s)return'';
+  const skip=new Set(['a','an','the','and','or','but','in','on','at','to','for','of','with','by','from']);
+  const acronyms=new Set(['llc','lp','llp','inc','corp','ltd','usa','dc','ny','la','dba','gne','atf','emg','nbc','abc','cbs','hbo','espn']);
+  return s.split(/\s+/).map((w,i)=>{
+    const low=w.toLowerCase();
+    // Already has mixed or all-caps — preserve as-is (e.g. GNE, LLC, Washington)
+    if(w!==w.toLowerCase()&&w!==w.toUpperCase()) return w; // mixed case — leave alone
+    if(w===w.toUpperCase()&&w.length>1) return w; // all-caps word — leave alone
+    // Known acronyms always uppercase
+    if(acronyms.has(low)) return w.toUpperCase();
+    // Skip words (only lowercase in non-first position)
+    if(i>0&&skip.has(low)) return low;
+    // Default: capitalize first letter
+    return low.charAt(0).toUpperCase()+low.slice(1);
+  }).join(' ');
+}
+
+// Only apply title case to vendor names that are entirely uppercase
+// (e.g. "HILTON ATLANTA DOWNTOWN" → "Hilton Atlanta Downtown")
+// Mixed-case names are left alone.
+function smartVendorCase(s) {
+  if (!s) return s;
+  const words = s.trim().split(/\s+/);
+  // If more than half the multi-letter words are all-caps, apply title case
+  const multiLetterWords = words.filter(w => w.length > 1);
+  const allCapsCount = multiLetterWords.filter(w => w === w.toUpperCase() && /[A-Z]/.test(w)).length;
+  if (multiLetterWords.length > 0 && allCapsCount / multiLetterWords.length >= 0.6) {
+    return toTitleCase(s.toLowerCase());
+  }
+  return s; // already mixed case — leave alone
+}
+
+// Guess meal vs transport from filename alone — used when API fails
+// ── API ERROR CLASSIFICATION ──────────────────────────────────
+function classifyApiError(errMessage) {
+  const msg = errMessage || '';
+  const code = (msg.match(/API (\d+)/) || [])[1];
+  const isNetwork = !code && (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed'));
+
+  const map = {
+    '529': { friendly: 'Anthropic servers are overloaded right now.', retry: true,  wait: 0  },
+    '503': { friendly: 'Service temporarily unavailable.',             retry: true,  wait: 0  },
+    '500': { friendly: 'Anthropic server error — not your fault.',     retry: true,  wait: 0  },
+    '429': { friendly: 'Too many requests — wait ~60 seconds.',        retry: true,  wait: 60 },
+    '408': { friendly: 'Request timed out.',                           retry: true,  wait: 0  },
+    '504': { friendly: 'Gateway timeout.',                             retry: true,  wait: 0  },
+    '401': { friendly: 'Invalid API key — retrying will not help.',    retry: false, wait: 0  },
+    '400': { friendly: 'Bad request — this image may be corrupt.',     retry: false, wait: 0  },
+    '413': { friendly: 'Image too large for the API.',                 retry: false, wait: 0  },
+  };
+
+  if (isNetwork) return { code: 'NET', friendly: 'No response from server — check your internet connection.', retry: true, wait: 0 };
+  if (code && map[code]) return { code, ...map[code] };
+  return { code: code||'?', friendly: 'Unexpected error.', retry: false, wait: 0 };
+}
+
+function guessCategory(filename) {
+  const lower = filename.toLowerCase();
+  const transportWords = [
+    'uber','lyft','taxi','cab','parking','transit','shuttle','ride',
+    'train','bus','metro','subway','fare','toll','car','vehicle',
+    'airport','flight','transport','transportation','limo','rental'
+  ];
+  for (const w of transportWords) {
+    // Match whole word or hyphen/underscore boundary
+    if (new RegExp(`(?:^|[^a-z])${w}(?:[^a-z]|$)`).test(lower)) return 'transport';
+  }
+  return 'meals';
+}
+
+function parseFilename(filename, type) {
+  const base=filename.replace(/\.[^.]+$/,'');
+  const date=dateFromFilename(base);
+  // Strip leading date code (YYYYMMDD or TYYYYMMDD etc) and number prefix
+  const rest=base.replace(/^[A-Za-z]?\d{8}\s*[-–]\s*/,'').replace(/^\d+\s+/,'').trim();
+  const lastName=getLastName();
+
+  // Words that appear in filenames but are never contractor names
+  const FILENAME_EXCLUSIONS = new Set([
+    'itemized','receipt','scan','copy','merchant','customer','invoice','expense',
+    'report','edited','final','draft','revised','photo','image','scanned',
+    'attachment','file','document','subtotal','total','tip','gratuity',
+    'tax','paid','payment','balance','change','cash','card','credit','debit',
+    'visa','mastercard','amex','approved','declined','void','refund',
+    'at','the','from','for','with','and','or','in','to',
+    'lunch','dinner','breakfast','coffee','bar','restaurant','food','meal',
+    'uber','lyft','taxi','cab','parking','transport','ride','transit'
+  ]);
+  // Filter a name token — returns true if it should be kept as a contractor name
+  function isValidName(n) {
+    if (!n || n.length < 2) return false;
+    if (FILENAME_EXCLUSIONS.has(n.toLowerCase())) return false;
+    if (/^\d+$/.test(n)) return false; // pure numbers
+    return true;
+  }
+
+  if (type==='meals') {
+    // "w" or "with" as names-start signal
+    const withRe=/\s+w(?:ith)?\s+(.+)$/i;
+    const withMatch=rest.match(withRe);
+    if (withMatch) {
+      const vendorRaw=rest.slice(0,withMatch.index).trim();
+      const namesPart=withMatch[1];
+      const rawNames=namesPart.split(/[,&+]+|\s+and\s+/i).map(s=>s.trim()).filter(Boolean);
+      const nameSet=new Set([lastName||''].filter(Boolean));
+      rawNames.forEach(n=>{
+        const words=n.trim().split(/\s+/);
+        const ln=words.length>=2?words[words.length-1]:words[0];
+        if(ln && isValidName(ln)) nameSet.add(toTitleCase(ln));
+      });
+      const names=[...nameSet];
+      const persons=names.length===1?names[0]:names.length===2?names[0]+' and '+names[1]:names.slice(0,-1).join(', ')+', and '+names[names.length-1];
+      return {date, vendor:toTitleCase(vendorRaw||rest), persons};
+    }
+    // & or + joining names
+    const ampRe=/\b([A-Z][a-z]+)\s*[&+]\s*([A-Z][a-z]+)(\s*[&+]\s*[A-Z][a-z]+)*/g;
+    const nameMatches=[...rest.matchAll(ampRe)];
+    if (nameMatches.length) {
+      const nameSet=new Set([lastName||''].filter(Boolean));
+      nameMatches.forEach(m=>{m[0].split(/\s*[&+]\s*/).forEach(n=>{
+        if(n.trim() && isValidName(n.trim())) nameSet.add(toTitleCase(n.trim()));
+      });});
+      const names=[...nameSet];
+      const persons=names.length===1?names[0]:names.length===2?names[0]+' and '+names[1]:names.slice(0,-1).join(', ')+', and '+names[names.length-1];
+      const vendorRaw=rest.slice(0,nameMatches[0].index).trim();
+      return {date, vendor:toTitleCase(vendorRaw||rest), persons};
+    }
+    return {date, vendor:toTitleCase(rest), persons:lastName||''};
+  } else {
+    // Transportation: strip date code + optional T prefix, use rest as description
+    const desc=toTitleCase(rest)||'Transportation';
+    const loc=document.getElementById('locationCity').value||'';
+    return {date, description:desc, location:toTitleCase(loc)};
+  }
+}
+
+// ── CLAUDE VISION ─────────────────────────────────────────────
+async function callVision(imgData, filename) {
+  const prompt=`You are an expert receipt analyst for US-based expense reports. Examine this receipt image carefully.
+
+STEP 1 — CATEGORY:
+Classify as exactly "meal" or "transport":
+- meal: restaurant, bar, café, food court, catering, hotel dining, room service, airport food, any food establishment
+- transport: Uber ride, Lyft ride, taxi, cab, parking garage, car rental, rideshare, train, bus, public transit
+- CRITICAL: Uber Eats, DoorDash, Grubhub, ANY food delivery app = "meal"
+- CRITICAL: Airport PARKING receipt = "transport". Airport restaurant = "meal".
+- Ambiguous hotel folio: use the larger charge type, default "meal" if equal
+
+STEP 2 — EXTRACT:
+
+DATE RULES (apply to both meal and transport):
+- Receipts are from US contractors. Dates use US format: MM/DD/YY or MM/DD/YYYY — NOT European DD/MM.
+- "09/12/25" means September 12, 2025 (not December 9, not 2009).
+- "12/3/25" means December 3, 2025.
+- If a 4-digit year looks like it could be misread (e.g. year comes out before 2020 or far in the future), use the most recent plausible year instead.
+- Return date as: D Month YYYY (e.g. "12 September 2025")
+
+If meal:
+- date: transaction date using rules above (blank if not visible)
+- vendor: establishment name only, no address
+- total: Find the amount that was actually paid — the final authorized or settled amount including any tip. This is what the card was charged. Look for labels like: Total, Grand Total, Payment Total, Amount Charged, Card Authorization, Authorized Amount, Amount Due, Balance Due — or a handwritten total. If multiple totals are visible (e.g. two receipts side by side), find the one representing the actual payment, not a subtotal or pre-tip amount. Self-check: mentally add up all line items below the subtotal (tax, fees, surcharges, tip, etc.) and verify they sum to the total you're reporting. If they don't add up and you cannot reconcile the difference, set confidence to LOW.
+- persons: any names handwritten or printed on receipt (last names only, comma-separated, empty if none)
+- time_mins: CAREFULLY read the TIME on the receipt (NOT file metadata, NOT current time). 24h integer minutes from midnight. 8:24 PM = 1224. 9:33 PM = 1293. 11:45 AM = 705. Return -1 if no time visible.
+- meal_type: use the TIME on receipt. Before 11am = "breakfast". 11am–5pm = "lunch". 5pm or later (time_mins >= 1020) = "dinner". Bars, happy hour, dessert = "dinner". Return "unknown" only if truly cannot determine.
+
+If transport:
+- date: Use these rules for receipts with multiple dates:
+  * Rideshare (Uber/Lyft/taxi): use the date the ride was TAKEN (earlier date if multiple). Ignore settlement/payment dates.
+  * Parking garage: use the EXIT date (later date if multiple, e.g. "to: 09/14/25" in a "from/to" range).
+  * Public transit pass: use the last date listed.
+  * Example parking: "from: 09/05/25 to 09/14/25" → use 14 September 2025
+- location: city name only
+- pickup_address: full street address of pickup/origin if visible on receipt (empty string if not)
+- dropoff_address: full street address of dropoff/destination if visible on receipt (empty string if not)
+- description: SHORT, terse description max 5 words. Use service type + locations if known.
+  GOOD: "Uber from Hotel to Airport", "Lyft from Dinner to Hotel", "Taxi from BNA to Hotel", "Parking — Convention Center", "Public Transit"
+  BAD: "receipt shows a ride from...", "it appears the user took...", "unclear destination"
+  Rules: If origin/destination addresses are on the receipt, reason about what they likely are (hotel, airport, restaurant area). Airport surcharge line = airport involved. Use short friendly names: "ATL Airport" not "Hartsfield-Jackson Atlanta International Airport". "Venetian Hotel" not "The Venetian Resort Hotel Casino". If unclear, just use service type: "Uber", "Lyft", "Taxi", "Parking", "Public Transit". Use filename as a hint too: ${filename}
+- total: final charge including tip
+- time_mins: time of ride/transaction, -1 if absent
+
+STEP 3 — CONFIDENCE:
+HIGH = clearly readable, total unambiguous
+MEDIUM = some uncertainty in one field
+LOW = poor quality, total unclear, heavily handwritten
+
+IMPORTANT: If total is unclear, return best estimate with LOW confidence. Only return 0.00 if receipt genuinely shows zero charge.
+
+Filename: ${filename}
+
+Return ONLY valid JSON, no markdown:
+{"category":"meal","date":"","vendor":"","total":0.00,"persons":"","time_mins":-1,"meal_type":"unknown","confidence":"HIGH","note":""}
+OR
+{"category":"transport","date":"","location":"","pickup_address":"","dropoff_address":"","description":"","total":0.00,"time_mins":-1,"confidence":"HIGH","note":""}`;
+
+  // Retry up to 3 times on 529 (overloaded) with exponential backoff
+  // On 404 (model deprecated), try fallback models before giving up
+  let resp, lastErr;
+  let activeModel = MODEL;
+  let fallbackIdx = 0;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      const delay = attempt * 8000; // 8s, 16s
+      const waitLine = plog(`Anthropic servers are overloaded — retrying in ${delay/1000}s… (attempt ${attempt+1}/3)`, '', true);
+      await new Promise(r => setTimeout(r, delay));
+      waitLine.innerHTML = `\u21BA Retrying now (attempt ${attempt+1}/3)\u2026`;
+    }
+    resp = await fetch('/api/vision',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:activeModel,max_tokens:1024,messages:[{role:'user',content:[
+        {type:'image',source:{type:'base64',media_type:imgData.mime,data:imgData.b64}},
+        {type:'text',text:prompt}
+      ]}]})
+    });
+    if (resp.ok) break;
+    const errText = await resp.text();
+    if (resp.status === 404 && fallbackIdx < MODEL_FALLBACKS.length) {
+      // Model deprecated — try next fallback silently
+      const next = MODEL_FALLBACKS[fallbackIdx++];
+      plog(`  Model ${activeModel} not found — trying ${next}`, '', false);
+      activeModel = next;
+      attempt--; // don't count this as a retry attempt
+      continue;
+    }
+    if (resp.status === 529) { lastErr = `API 529: Anthropic servers are overloaded right now.`; continue; }
+    throw new Error(`API ${resp.status}: ${errText}`);
+  }
+  if (!resp.ok) throw new Error(lastErr || `API ${resp.status}: Anthropic servers are overloaded — all 3 retries failed.`);
+  const data=await resp.json();
+  const raw=data.content[0].text.trim().replace(/```json|```/g,'').trim();
+  // Primary: try direct parse
+  try { return JSON.parse(raw); } catch(e) {
+    // Fallback: Vision sometimes wraps JSON in prose — extract the JSON object
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try { return JSON.parse(jsonMatch[0]); } catch(e2) { /* fall through */ }
+    }
+    // Last resort: return a LOW confidence skeleton so review modal fires
+    console.warn('Vision JSON parse failed, using skeleton. Raw:', raw.slice(0,200));
+    return {
+      category:'meal', date:'', vendor:'', total:0, persons:'',
+      time_mins:-1, meal_type:'unknown', confidence:'LOW',
+      note:'Vision response could not be parsed — please review manually'
+    };
+  }
+}
+
+// ── DATE SORT HELPERS ─────────────────────────────────────────
+function parseDateToMs(dateStr) {
+  if (!dateStr) return null;
+  // "9 March 2026"
+  const m=dateStr.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  if(m){const moIdx=MONTHS_SHORT.indexOf(m[2].toLowerCase().slice(0,3));if(moIdx>=0)return new Date(parseInt(m[3]),moIdx,parseInt(m[1])).getTime();}
+  return null;
+}
+
+function mealTypeToMins(vendor) {
+  if (!vendor) return 720;
+  const v=vendor.toLowerCase();
+  if (v.includes('coffee')||v.includes('cafe')||v.includes('bakery')||v.includes('breakfast')) return 8*60;
+  if (v.includes('lunch')||v.includes('deli')||v.includes('sandwich')) return 12*60;
+  if (v.includes('dinner')||v.includes('restaurant')||v.includes('bar')||v.includes('grill')||v.includes('steak')) return 19*60;
+  return 13*60; // default midday
+}
+
+// ── NOMINATIM REVERSE/FORWARD GEOCODING ───────────────────────
+// Uses OpenStreetMap Nominatim — free, no key needed, ~300ms per call.
+// Rate limited to 1 req/sec; we space calls with a small delay.
+const _nominatimCache = {};
+async function geocodeAddress(address) {
+  if (!address || !address.trim()) return null;
+  const key = address.trim().toLowerCase();
+  if (_nominatimCache[key]) return _nominatimCache[key];
+  try {
+    // Small delay to respect Nominatim's 1 req/sec limit
+    await new Promise(r => setTimeout(r, 1100));
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&addressdetails=1`;
+    const resp = await fetch(url, {
+      headers: { 'Accept': 'application/json', 'User-Agent': 'APLiveExpenseApp/1.0' }
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (!data || !data.length) return null;
+    const result = data[0];
+    const addr = result.address || {};
+    // Build a friendly short name
+    const friendly = buildFriendlyName(result.display_name, addr);
+    _nominatimCache[key] = friendly;
+    return friendly;
+  } catch(e) {
+    return null;
+  }
+}
+
+function buildFriendlyName(displayName, addr) {
+  // Airport detection
+  if (displayName.toLowerCase().includes('airport') ||
+      displayName.toLowerCase().includes('international airport') ||
+      addr.aeroway === 'aerodrome') {
+    // Extract IATA-style short name
+    const iata = displayName.match(/\b([A-Z]{3})\b/);
+    const city = addr.city || addr.town || addr.county || '';
+    if (iata) return `${city ? city + ' ' : ''}${iata[1]} Airport`.trim();
+    // Fall back to city + Airport
+    if (city) return `${city} Airport`;
+    return 'Airport';
+  }
+  // Hotel / resort detection
+  const hotelWords = ['hotel','resort','inn','suites','lodge','motel','hyatt','marriott','hilton','sheraton','westin','omni','loews','kimpton','four seasons','ritz'];
+  const lower = displayName.toLowerCase();
+  for (const hw of hotelWords) {
+    if (lower.includes(hw)) {
+      // Try to get the establishment name (first part of display_name)
+      const parts = displayName.split(',');
+      const name = parts[0].trim();
+      // Shorten if too long
+      return name.length > 30 ? name.split(' ').slice(0,3).join(' ') : name;
+    }
+  }
+  // Restaurant / venue — use establishment name if present
+  if (addr.amenity || addr.leisure || addr.tourism) {
+    const name = addr.amenity || addr.leisure || addr.tourism;
+    if (name && name.length < 35) return name;
+  }
+  // Fall back to neighborhood + city
+  const neighborhood = addr.neighbourhood || addr.suburb || addr.quarter || '';
+  const city = addr.city || addr.town || addr.village || '';
+  if (neighborhood && city) return `${neighborhood}, ${city}`;
+  if (city) return city;
+  // Last resort: first comma-segment of display name
+  return displayName.split(',')[0].trim();
+}
+
+// Enrich a transport entry's description using geocoded addresses
+async function enrichTransportDescription(entry, api) {
+  const pickup  = (api.pickup_address  || '').trim();
+  const dropoff = (api.dropoff_address || '').trim();
+  // If Vision already gave a good description (not generic), keep it
+  const genericDescs = ['uber','lyft','taxi','cab','parking','transit','rideshare','transport','ride'];
+  const currentDesc = (entry.description || '').toLowerCase().trim();
+  const isGeneric = genericDescs.some(g => currentDesc === g) || currentDesc === '';
+  if (!isGeneric && entry.description.length > 5) return; // already descriptive
+
+  const svcType = entry.description || 'Transport';
+  if (!pickup && !dropoff) return; // nothing to geocode
+
+  plog(`  📍 Geocoding ${svcType} addresses…`);
+  const [fromName, toName] = await Promise.all([
+    pickup  ? geocodeAddress(pickup)  : Promise.resolve(null),
+    dropoff ? geocodeAddress(dropoff) : Promise.resolve(null),
+  ]);
+
+  if (fromName && toName) {
+    entry.description = `${svcType} from ${fromName} to ${toName}`;
+  } else if (toName) {
+    entry.description = `${svcType} to ${toName}`;
+  } else if (fromName) {
+    entry.description = `${svcType} from ${fromName}`;
+  }
+  // Trim to reasonable length
+  if (entry.description.length > 50) {
+    entry.description = entry.description.slice(0, 47) + '…';
+  }
+}
+
+
+function sortByDateTime(entries) {
+  return [...entries].sort((a,b)=>{
+    const aMs=parseDateToMs(a.date)||0;
+    const bMs=parseDateToMs(b.date)||0;
+    if(aMs!==bMs) return aMs-bMs;
+    // Same date — use time_mins if available
+    const aT=a.sortTs!=null?a.sortTs:(a.time_mins>=0?a.time_mins:(mealTypeToMins(a.vendor||a.description)));
+    const bT=b.sortTs!=null?b.sortTs:(b.time_mins>=0?b.time_mins:(mealTypeToMins(b.vendor||b.description)));
+    return aT-bT;
+  });
+}
+
+// ── MEAL BUDGET CHECK ─────────────────────────────────────────
+// Count distinct contractors from persons string
+function countContractors(persons) {
+  if (!persons || !persons.trim()) return 1;
+  // Split by comma, "and", Oxford comma
+  const names = persons.split(/,\s*and\s+|,\s+|\s+and\s+/).map(s=>s.trim()).filter(Boolean);
+  return Math.max(1, names.length);
+}
+
+async function checkMealBudget(entry, filename) {
+  if (entry.isPerdiem) return;
+  const total = entry.total || 0;
+  if (total <= 0) return;
+
+  // Use Vision's meal_type if valid, otherwise fall back to local detector
+  const validTypes = new Set(['breakfast','lunch','dinner']);
+  let mealType = (entry.visionMealType && validTypes.has(entry.visionMealType))
+    ? entry.visionMealType
+    : detectMealType(entry.vendor, entry.time_mins, filename);
+
+  // If still unknown, pass null to modal — user picks meal type there
+  entry.mealType = mealType || 'unknown';
+
+  const contractorCount = countContractors(entry.persons);
+  const budgetPerPerson = MEAL_BUDGETS[mealType] || 100;
+  const budgetTotal = budgetPerPerson * contractorCount;
+
+  // Show modal if over budget OR if meal type is unknown (need user to classify)
+  const isOverBudget = mealType && total > budgetTotal;
+  const isUnknown = !mealType;
+  if (!isOverBudget && !isUnknown) return;
+
+  // Show unified modal — handles review, budget math, chip editing in one flow
+  const result = await showReceiptModal(entry, 'meals', false);
+
+  // Apply all result fields back to entry
+  if (result && Object.keys(result).length) {
+    if (result.persons)       entry.persons       = result.persons;
+    if (result.date)          entry.date          = result.date;
+    if (result.vendor)        entry.vendor        = result.vendor;
+    if (result.mealType)      entry.mealType      = result.mealType;
+    if (result.visionMealType) entry.visionMealType = result.visionMealType;
+    if (result.confidence)    entry.confidence    = result.confidence;
+    if (typeof result.total === 'number') entry.total = result.total;
+    if (result.budgetNote !== undefined)  entry.budgetNote = result.budgetNote;
+  }
+  // overageResults already updated inside showReceiptModal if over budget
+}
+
+
+// ── ICS CALENDAR IMPORT ──────────────────────────────────────
+
+function icsUnfold(text) {
+  // Remove CRLF or LF followed by space/tab (line continuation)
+  return text.replace(/\r?\n[ \t]/g, '');
+}
+
+function icsValue(line) {
+  // Strip property name + any parameters (e.g. DTSTART;VALUE=DATE:20260610 → 20260610)
+  const idx = line.indexOf(':');
+  return idx >= 0 ? line.slice(idx + 1).trim() : '';
+}
+
+function icsParseDate(d) {
+  // YYYYMMDD → {year, month0, day} object
+  if (!d || d.length < 8) return null;
+  return { y: parseInt(d.slice(0,4)), m: parseInt(d.slice(4,6))-1, d: parseInt(d.slice(6,8)) };
+}
+
+function icsFmtDate(obj) {
+  if (!obj) return null;
+  const MONTHS = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  return `${obj.d} ${MONTHS[obj.m]} ${obj.y}`;
+}
+
+function icsSubtractDay(obj) {
+  if (!obj) return null;
+  const dt = new Date(obj.y, obj.m, obj.d);
+  dt.setDate(dt.getDate() - 1);
+  return { y: dt.getFullYear(), m: dt.getMonth(), d: dt.getDate() };
+}
+
+function parseICS(text) {
+  const unfolded = icsUnfold(text);
+  const lines = unfolded.split(/\r?\n/);
+
+  // Build key→value map (last wins for duplicates, which is fine here)
+  const props = {};
+  for (const line of lines) {
+    if (!line.includes(':')) continue;
+    const key = line.split(':')[0].split(';')[0].toUpperCase();
+    props[key] = icsValue(line);
+  }
+
+  const summary  = props['SUMMARY']  || '';
+  const location = props['LOCATION'] || '';
+  const dtstart  = props['DTSTART']  || '';
+  const dtend    = props['DTEND']    || '';
+
+  const result = {};
+
+  // ── JOB NUMBER ───────────────────────────────────────────────
+  const jobMatch = summary.match(/\b(\d{5})\b/);
+  if (jobMatch) result.jobNum = jobMatch[1];
+
+  // ── CITY ─────────────────────────────────────────────────────
+  // Remove "AP Live - " prefix, then split on " - "
+  const summaryClean = summary.replace(/^AP\s+Live\s*[-–]\s*/i, '').trim();
+  const segments = summaryClean.split(/\s*[-–]\s*/).map(s => s.trim()).filter(Boolean);
+
+  function looksLikeCity(seg) {
+    if (!seg || seg.length < 2 || seg.length > 35) return false;
+    if (/^\d/.test(seg)) return false;            // starts with digit
+    if (/^\d{5}/.test(seg)) return false;          // job number
+    if (/^[AV]\d+$/i.test(seg)) return false;      // A1, V1, V2
+    if (/^V\d+\s+/i.test(seg)) return false;       // V1 for GNE
+    if (seg.split(/\s+/).length > 4) return false; // too many words
+    // Must start with uppercase letter
+    if (!/^[A-Z]/.test(seg)) return false;
+    return true;
+  }
+
+  for (const seg of segments) {
+    if (result.jobNum && seg.includes(result.jobNum)) continue;
+    // Skip segment that's just a job number with optional suffix (e.g. "25129 A1")
+    if (/^\d{5}(\s+[A-Z]\d+)?$/.test(seg)) continue;
+    if (looksLikeCity(seg)) { result.city = seg; break; }
+  }
+
+  // Cross-check / fallback city from LOCATION address
+  if (location) {
+    const locParts = location.split('\\n');
+    if (locParts.length >= 2) {
+      const addrParts = locParts[1].split('\\,').map(s => s.trim());
+      if (addrParts.length >= 2) {
+        const locCity = addrParts[1].trim();
+        if (locCity && locCity !== 'United States' && !result.city) {
+          result.city = locCity;
+        }
+      }
+    } else {
+      // No \n — try "Venue Name, City ST" pattern
+      const m = location.match(/,\s*([A-Z][a-zA-Z\s]+),?\s+[A-Z]{2}(?:\s+\d{5})?/);
+      if (m && !result.city) result.city = m[1].trim();
+    }
+  }
+
+  // ── PROGRAM NAME ─────────────────────────────────────────────
+  if (result.jobNum) {
+    const jobIdx = summary.indexOf(result.jobNum);
+    if (jobIdx >= 0) {
+      let after = summary.slice(jobIdx + result.jobNum.length).trim();
+      // Strip leading A1/V1 type suffix on job number
+      after = after.replace(/^[\s]*[AV]\d+\s*/i, '');
+      // Strip leading dashes
+      after = after.replace(/^[\s\-–]+/, '');
+      // Strip trailing version/role markers
+      after = after.replace(/\s*[-–]\s*(V\d+[^-–]*|AV\s+Technician[^-–]*)$/i, '');
+      after = after.replace(/\s*\(V\d+[^)]*\)$/i, '');
+      // Strip trailing [EAST], [WEST] etc
+      after = after.replace(/\s*\[.*?\]\s*$/, '');
+      // Strip trailing city name if it leaked to the end (e.g. "- Atlanta")
+      if (result.city) {
+        const cityEsc = result.city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        after = after.replace(new RegExp(`\\s*[-–]\\s*${cityEsc}\\s*$`, 'i'), '');
+      }
+      // Strip city appearing at start if job number was before city in summary
+      if (result.city) {
+        const cityEsc = result.city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        after = after.replace(new RegExp(`^${cityEsc}\\s*[-–]\\s*`, 'i'), '');
+      }
+      after = after.trim().replace(/^[-–\s]+|[-–\s]+$/g, '');
+      if (after.length > 3) result.programName = after;
+    }
+  }
+
+  // ── VENUE ─────────────────────────────────────────────────────
+  if (location) {
+    const locParts = location.split('\\n');
+    let venueLine = locParts[0].trim();
+    // Remove escaped commas and trailing city/state if no \n separator
+    if (locParts.length === 1) {
+      // Format: "Venue Name, City ST" or "Venue Name\, City ST"
+      // Strip everything after first comma+city pattern
+      venueLine = venueLine
+        .replace(/\\,.*$/, '')           // strip \, City ST ...
+        .replace(/,\s*[A-Z][a-z].*$/, '') // strip , City ST ...
+        .trim();
+    }
+    // Don't use as venue if it starts with a street number
+    if (!/^\d+\s/.test(venueLine) && venueLine.length > 3) {
+      result.venue = venueLine;
+    }
+  }
+
+  // ── PROGRAM DATES ─────────────────────────────────────────────
+  if (dtstart && dtend) {
+    const start = icsParseDate(dtstart);
+    // DTEND for VALUE=DATE is exclusive — subtract 1 day
+    const endRaw = icsParseDate(dtend);
+    const end    = icsSubtractDay(endRaw);
+    if (start && end) {
+      result.programDates = `${icsFmtDate(start)} – ${icsFmtDate(end)}`;
+    }
+  }
+
+  return result;
+}
+
+function applyICSToForm(parsed) {
+  const filled = [];
+  const skipped = [];
+
+  function fill(id, value, label) {
+    if (!value) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.value && el.value.trim()) { skipped.push(label); return; }
+    el.value = value;
+    // Fire input event so any listeners (e.g. normalizeProgramDates) pick it up
+    el.dispatchEvent(new Event('input', {bubbles:true}));
+    filled.push(label);
+  }
+
+  fill('apJobNum',     parsed.jobNum,       'Job #');
+  fill('locationCity', parsed.city,         'City');
+  fill('programName',  parsed.programName,  'Program Name');
+  fill('venue',        parsed.venue,        'Venue');
+
+  // Program dates — fill then normalize formatting
+  if (parsed.programDates) {
+    const el = document.getElementById('programDates');
+    if (el && !el.value.trim()) {
+      el.value = parsed.programDates;
+      el.dispatchEvent(new Event('input', {bubbles:true}));
+      normalizeProgramDates();
+      filled.push('Program Dates');
+    } else if (el && el.value.trim()) {
+      skipped.push('Program Dates');
+    }
+  }
+
+  // Toast
+  const toast = document.getElementById('icsToast');
+  let msg = '';
+  if (filled.length === 0) {
+    msg = 'Calendar imported — no new fields to fill (all already filled).';
+    toast.className = 'ics-toast err';
+  } else {
+    msg = `Calendar imported \u2192 filled: ${filled.join(', ')}` +
+          (skipped.length ? `. Skipped (already filled): ${skipped.join(', ')}` : '');
+    toast.className = 'ics-toast';
+  }
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 5000);
+}
+
+function handleICSFile(file) {
+  if (!file || !file.name.toLowerCase().endsWith('.ics')) {
+    const toast = document.getElementById('icsToast');
+    toast.textContent = 'Please drop a .ics calendar file.';
+    toast.className = 'ics-toast err show';
+    setTimeout(() => toast.classList.remove('show'), 3000);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = parseICS(e.target.result);
+      applyICSToForm(parsed);
+    } catch(err) {
+      const toast = document.getElementById('icsToast');
+      toast.textContent = 'Could not parse calendar file.';
+      toast.className = 'ics-toast err show';
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ── MAIN PROCESSING ────────────────────────────────────────────
+async function startProcessing() {
+  // ── Validate Full Name (required: at least first + last) ───
+  const nameEl = document.getElementById('userName');
+  const nameParts = (nameEl.value||'').trim().split(/\s+/).filter(Boolean);
+  if (nameParts.length < 2) {
+    nameEl.style.borderColor = 'var(--err)';
+    nameEl.style.boxShadow   = '0 0 0 2px var(--err-bg)';
+    nameEl.focus();
+    // Show inline error if not already present
+    let errMsg = document.getElementById('nameFieldError');
+    if (!errMsg) {
+      errMsg = document.createElement('div');
+      errMsg.id = 'nameFieldError';
+      errMsg.style.cssText = 'font-size:11px;color:var(--err);margin-top:4px;';
+      errMsg.textContent = 'First and last name required before processing.';
+      nameEl.parentNode.appendChild(errMsg);
+    }
+    // Clear error styling when user types
+    const clearErr = () => {
+      nameEl.style.borderColor = '';
+      nameEl.style.boxShadow   = '';
+      const e = document.getElementById('nameFieldError');
+      if (e) e.remove();
+      nameEl.removeEventListener('input', clearErr);
+    };
+    nameEl.addEventListener('input', clearErr);
+    return;
+  }
+
+  if(!allFiles.length){
+    // No receipts — still show results section so user can export invoice
+    mealsResults=[]; transportResults=[]; overageResults=[];
+    mealsResults.push(...getPerDiemEntries());
+    renderResults();
+    document.getElementById('progressArea').classList.remove('active');
+    return;
+  }
+  const btn=document.getElementById('processBtn');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Processing...';
+  document.getElementById('progressArea').classList.add('active');
+  document.getElementById('resultsSection').classList.remove('active');
+  document.getElementById('progressLog').innerHTML='';
+  mealsResults=[]; transportResults=[]; overageResults=[];
+
+  const total=allFiles.length;
+  let done=0;
+  function setP(pct,label){
+    document.getElementById('progressFill').style.width=pct+'%';
+    document.getElementById('progressPct').textContent=Math.round(pct)+'%';
+    document.getElementById('progressLabel').textContent=label;
+  }
+
+  for(let i=0;i<allFiles.length;i++){
+    const f=allFiles[i].file;
+    plog('\u{1F4F8} '+( i+1)+'/'+total+': '+f.name);
+    setP((done/total)*100,'Processing '+(i+1)+'/'+total+': '+f.name);
+    let imgs;
+    try{
+      imgs=await fileToImg(f);
+      const api=await callVision(imgs[0],f.name);
+      const cat=api.category==='transport'?'transport':'meals';
+      updateFileCategory(i,cat);
+
+      if(cat==='meals'){
+        const fn=parseFilename(f.name,'meals');
+        const lastName=getLastName();
+        let persons=fn.persons||lastName||'';
+        if(api.persons){
+          const visionNames=api.persons.split(',').map(s=>s.trim()).filter(Boolean);
+          const allNamesSet=new Set(persons.split(/,\s+and\s+|,\s*|\s+and\s+/).map(s=>s.trim()).filter(Boolean));
+          visionNames.forEach(n=>allNamesSet.add(toTitleCase(n)));
+          const arr=[...allNamesSet];
+          persons=arr.length===1?arr[0]:arr.length===2?arr[0]+' and '+arr[1]:arr.slice(0,-1).join(', ')+', and '+arr[arr.length-1];
+        }
+        const entry={
+          filename:f.name,dataUrl:imgs[0].dataUrl,allImgs:imgs,
+          date:sanitizeReceiptDate(api.date||fn.date),vendor:smartVendorCase(api.vendor||fn.vendor),persons,
+          total:parseFloat(api.total)||0,confidence:api.confidence||'LOW',
+          note:api.note||'',time_mins:api.time_mins>=0?api.time_mins:-1,type:'meals',
+          visionMealType:api.meal_type||null  // Vision's direct meal classification
+        };
+        if(entry.total===0) entry.confidence='LOW';
+        // Math verification handled by Vision self-check in prompt
+        if(entry.confidence!=='HIGH') Object.assign(entry,await showReceiptModal(entry,'meals'));
+        // Handle category override — user switched to transport in modal
+        if (entry.categoryOverride === 'transport') {
+          entry.type = 'transport';
+          transportResults.push(entry);
+          plog('\u2713 '+f.name+' \u2192 Transport (reclassified) $'+(entry.total||0).toFixed(2),'ok');
+        } else {
+          // ── MEAL BUDGET CHECK ──────────────────────────────────
+          await checkMealBudget(entry, f.name);
+          mealsResults.push(entry);
+          plog('\u2713 '+f.name+' \u2192 Meal $'+(entry.total||0).toFixed(2)+' ['+entry.confidence+']','ok');
+        }
+
+      } else {
+        const fn=parseFilename(f.name,'transport');
+        const entry={
+          filename:f.name,dataUrl:imgs[0].dataUrl,allImgs:imgs,
+          date:sanitizeReceiptDate(api.date||fn.date),
+          location:api.location||fn.location||document.getElementById('locationCity').value||'',
+          description:api.description||fn.description||'Transportation',
+          total:parseFloat(api.total)||0,confidence:api.confidence||'LOW',
+          note:api.note||'',time_mins:api.time_mins>=0?api.time_mins:-1,type:'transport'
+        };
+        if(entry.total===0) entry.confidence='LOW';
+        if(entry.confidence!=='HIGH') Object.assign(entry,await showReceiptModal(entry,'transport'));
+        // Geocode pickup/dropoff addresses from Vision for smarter descriptions
+        if (api.pickup_address||api.dropoff_address) {
+          await enrichTransportDescription(entry, api);
+        }
+        // Handle category override — user switched to meals in modal
+        if (entry.categoryOverride === 'meals') {
+          entry.type = 'meals';
+          await checkMealBudget(entry, f.name);
+          mealsResults.push(entry);
+          plog('\u2713 '+f.name+' \u2192 Meal (reclassified) $'+(entry.total||0).toFixed(2),'ok');
+        } else {
+          transportResults.push(entry);
+          plog('\u2713 '+f.name+' \u2192 Transport $'+(entry.total||0).toFixed(2)+' ['+entry.confidence+']','ok');
+        }
+      }
+    }catch(e){
+      const errInfo = classifyApiError(e.message);
+      const friendlyNote = errInfo.friendly + ' (' + (errInfo.code||'?') + ')';
+      plog('\u2717 '+f.name+': '+friendlyNote,'err');
+      const guessedCat = guessCategory(f.name);
+      const fn=parseFilename(f.name, guessedCat);
+      const entry={filename:f.name,dataUrl:imgs?imgs[0].dataUrl:'',allImgs:imgs||[],
+        date:fn.date,vendor:fn.vendor||fn.description||'',
+        persons:fn.persons||getLastName()||'',
+        location:fn.location||document.getElementById('locationCity').value||'',
+        description:fn.description||'',
+        total:0,confidence:'LOW',
+        note:friendlyNote,
+        _retryable:errInfo.retry, _retryWait:errInfo.wait, _originalFile:f,
+        time_mins:-1,type:guessedCat};
+      // Modal loop — retry may close and reopen with fresh Vision data
+      let modalEntry = entry;
+      let modalResult;
+      while (true) {
+        window.__rm_retryEntry = null;
+        modalResult = await showReceiptModal(modalEntry, guessedCat);
+        if (window.__rm_retryEntry) {
+          // Retry succeeded — reopen with the fresh entry
+          modalEntry = window.__rm_retryEntry;
+          guessedCat = modalEntry.type || guessedCat;
+          window.__rm_retryEntry = null;
+          continue;
+        }
+        break;
+      }
+      Object.assign(modalEntry, modalResult);
+      const finalCat = modalEntry.categoryOverride || guessedCat;
+      modalEntry.type = finalCat;
+      if (finalCat === 'transport') {
+        transportResults.push(modalEntry);
+      } else {
+        await checkMealBudget(modalEntry, f.name);
+        mealsResults.push(modalEntry);
+      }
+    }
+    done++;
+  }
+
+  mealsResults.push(...getPerDiemEntries());
+  mealsResults=sortByDateTime(mealsResults);
+  transportResults=sortByDateTime(transportResults);
+
+  setP(100,'Complete!');
+  plog('\u2705 All receipts processed.','ok');
+  renderResults();
+  btn.disabled=false;
+  btn.innerHTML='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Re-Process Invoice';
+}
+
+function plog(msg, cls='', spinner=false) {
+  const el = document.getElementById('progressLog');
+  const p = document.createElement('p');
+  p.className = cls;
+  if (spinner) {
+    p.innerHTML = '<span class="spinner" style="border-top-color:var(--orange);border-color:rgba(255,255,255,0.15);border-top-color:var(--orange);margin-right:7px;vertical-align:middle;"></span>' + msg;
+  } else {
+    p.textContent = msg;
+  }
+  el.appendChild(p);
+  el.scrollTop = el.scrollHeight;
+  return p; // return element so caller can update it later
+}
+
+// ── RESULTS RENDERING ──────────────────────────────────────────
+function renderResults(){
+  document.getElementById('resultsSection').classList.add('active');
+  let ms=0,ts=0;
+  const mb=document.getElementById('mealsBody'); mb.innerHTML='';
+  mealsResults.forEach((r,i)=>{
+    ms+=r.total||0;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="text-muted text-sm">${i+1}</td><td>${r.date||'—'}</td><td><strong>${r.vendor||'—'}</strong>${r.isPerdiem?'<span style="font-size:10px;color:var(--muted);margin-left:6px;">per diem</span>':''}</td><td class="persons-cell text-muted text-sm">${r.persons||'—'}</td><td class="total-cell ${(r.confidence!=='HIGH'&&r.confidence!=='ADJUSTED')?'flagged':''}">$${(r.total||0).toFixed(2)}</td><td>${chip(r.confidence)}</td><td><button class="edit-btn" onclick="editRow('meals',${i})">Edit</button></td>`;
+    mb.appendChild(tr);
+  });
+  const tb=document.getElementById('transportBody'); tb.innerHTML='';
+  transportResults.forEach((r,i)=>{
+    ts+=r.total||0;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="text-muted text-sm">${i+1}</td><td>${r.date||'—'}</td><td>${r.location||'—'}</td><td class="text-muted text-sm">${r.description||'—'}</td><td class="total-cell ${r.confidence!=='HIGH'?'flagged':''}">$${(r.total||0).toFixed(2)}</td><td>${chip(r.confidence)}</td><td><button class="edit-btn" onclick="editRow('transport',${i})">Edit</button></td>`;
+    tb.appendChild(tr);
+  });
+  document.getElementById('mealsTotalCell').textContent='$'+ms.toFixed(2);
+  document.getElementById('transportTotalCell').textContent='$'+ts.toFixed(2);
+  document.getElementById('sumMeals').textContent='$'+ms.toFixed(2);
+  document.getElementById('sumTransport').textContent='$'+ts.toFixed(2);
+  document.getElementById('sumGrand').textContent='$'+(ms+ts).toFixed(2);
+
+  // ── Overage table ──────────────────────────────────────────
+  let ov=0;
+  const ob=document.getElementById('overageBody'); ob.innerHTML='';
+  overageResults.forEach(r=>{
+    ov+=r.overage||0;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${r.date||'—'}</td><td><strong>${r.vendor||'—'}</strong></td><td class="persons-cell text-muted text-sm">${r.persons||'—'}</td><td class="text-muted">$${(r.receiptTotal||0).toFixed(2)}</td><td class="total-cell">$${(r.invoicedTotal||0).toFixed(2)}</td><td style="color:var(--warn);font-weight:600;">$${(r.overage||0).toFixed(2)}</td>`;
+    ob.appendChild(tr);
+  });
+  const hasOverage=overageResults.length>0;
+  document.getElementById('overageSection').style.display=hasOverage?'block':'none';
+  document.getElementById('sumOverageCard').style.display=hasOverage?'block':'none';
+  document.getElementById('sumOverage').textContent='$'+ov.toFixed(2);
+  document.getElementById('overageTotalCell').textContent='$'+ov.toFixed(2);
+  const grid=document.getElementById('summaryGrid');
+  grid.style.gridTemplateColumns=hasOverage?'repeat(4,1fr)':'repeat(3,1fr)';
+}
+
+function chip(c){
+  if(c==='HIGH')return'<span class="chip chip-ok">✓ Verified</span>';
+  if(c==='ADJUSTED')return'<span class="chip chip-adjusted">✂ Adjusted</span>';
+  if(c==='MEDIUM')return'<span class="chip chip-warn">⚠ Review</span>';
+  return'<span class="chip chip-err">✗ Manual</span>';
+}
+
+function editRow(type,idx){
+  const arr=type==='meals'?mealsResults:transportResults;
+  showReceiptModal(arr[idx],type,true).then(updated=>{if(updated&&Object.keys(updated).length){Object.assign(arr[idx],updated);}renderResults();});
+}
+
+// ── MODAL ──────────────────────────────────────────────────────
+
+function showReceiptModal(entry, type, isEdit=false) {
+  return new Promise(resolve => {
+    const overlay  = document.getElementById('modalOverlay');
+    const titleEl  = document.getElementById('modalTitle');
+    const confBar  = document.getElementById('confBar');
+    const confText = document.getElementById('confText');
+    const img      = document.getElementById('modalImg');
+    const flds     = document.getElementById('modalFields');
+    const actions  = document.querySelector('.modal-actions');
+    const origActions = actions.innerHTML;
+    const isMeal   = type === 'meals';
+
+    // ── Receipt image ─────────────────────────────────────────
+    img.src = entry.dataUrl || '';
+    img.style.transform = 'scale(1)';
+    isZoomed = false; panOffset = {x:0,y:0};
+    document.getElementById('receiptViewer').classList.remove('zoomed');
+
+    // ── Title + confidence bar ────────────────────────────────
+    titleEl.textContent = isEdit
+      ? `Edit: ${entry.filename}`
+      : `Review Required: ${entry.filename}`;
+    confBar.className = 'conf-bar conf-' + (entry.confidence||'LOW');
+    confText.textContent = entry.confidence
+      ? `Confidence: ${entry.confidence}${entry.note?' \u2014 '+entry.note:''}`
+      : 'Please review and confirm';
+
+    // ── Retry button — shown for retryable API errors ─────────
+    const existingRetryBtn = document.getElementById('rm_retryBtn');
+    if (existingRetryBtn) existingRetryBtn.remove();
+    if (entry._retryable && entry._originalFile) {
+      const waitSec = entry._retryWait || 0;
+
+      // Container: button + status line
+      const retryWrap = document.createElement('div');
+      retryWrap.id = 'rm_retryBtn';
+      retryWrap.style.cssText = 'margin-top:10px;';
+
+      const retryBtn = document.createElement('button');
+      retryBtn.innerHTML = `\u21BA ${waitSec > 0 ? `Retry (wait ${waitSec}s)` : 'Retry Receipt'}`;
+      retryBtn.style.cssText = 'width:100%;padding:10px 14px;border-radius:8px;border:none;background:var(--warn);color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.02em;';
+
+      const statusLine = document.createElement('div');
+      statusLine.style.cssText = 'margin-top:7px;font-size:11px;color:var(--muted);min-height:16px;display:flex;align-items:center;gap:6px;';
+
+      retryWrap.appendChild(retryBtn);
+      retryWrap.appendChild(statusLine);
+
+      const setStatus = (msg, spinning=false) => {
+        statusLine.innerHTML = spinning
+          ? `<span class="spinner" style="width:11px;height:11px;border:2px solid rgba(255,255,255,0.15);border-top-color:var(--orange);flex-shrink:0;"></span>${msg}`
+          : msg;
+      };
+
+      retryBtn.onclick = async () => {
+        retryBtn.disabled = true;
+        retryBtn.style.opacity = '0.6';
+
+        try {
+          if (waitSec > 0) {
+            for (let s = waitSec; s > 0; s--) {
+              setStatus(`Waiting ${s}s before retrying…`, true);
+              await new Promise(r => setTimeout(r, 1000));
+            }
+          }
+          setStatus('Resizing image…', true);
+          const imgs2 = await fileToImg(entry._originalFile);
+
+          setStatus('Calling Vision API…', true);
+          const api2 = await callVision(imgs2[0], entry._originalFile.name);
+
+          setStatus('Processing response…', true);
+
+          // Build a fresh updated entry, then close + reopen modal cleanly
+          // (avoids stale closure variables like trueReceiptTotal staying at 0)
+          const updatedEntry = Object.assign({}, entry, {
+            dataUrl:       imgs2[0].dataUrl,
+            allImgs:       imgs2,
+            date:          sanitizeReceiptDate(api2.date) || entry.date,
+            vendor:        smartVendorCase(api2.vendor)   || entry.vendor,
+            persons:       api2.persons || entry.persons,
+            total:         parseFloat(api2.total) || 0,
+            confidence:    api2.confidence || 'HIGH',
+            note:          api2.note || '',
+            time_mins:     api2.time_mins >= 0 ? api2.time_mins : -1,
+            visionMealType:api2.meal_type || null,
+            mealType:      api2.meal_type || null,
+            _retryable:    false,
+            _originalFile: entry._originalFile,
+          });
+          // Math verification handled by Vision self-check
+
+          setStatus('\u2713 Got response — reopening with updated data.', false);
+          await new Promise(r => setTimeout(r, 600)); // brief pause so user sees the message
+
+          // Close current modal, resolve with a sentinel that triggers reopen
+          // We smuggle the updated entry via a shared ref
+          window.__rm_retryEntry = updatedEntry;
+          if (typeof window.__rm_cancel === 'function') window.__rm_cancel();
+
+        } catch(e2) {
+          const ei2 = classifyApiError(e2.message);
+          entry._retryable = ei2.retry;
+          entry._retryWait = ei2.wait;
+          retryBtn.disabled = false;
+          retryBtn.style.opacity = '1';
+          retryBtn.innerHTML = `\u21BA ${ei2.retry ? 'Retry Again' : 'Failed'}`;
+          if (!ei2.retry) retryBtn.style.background = 'var(--err)';
+          setStatus(ei2.friendly, false);
+          confBar.className = 'conf-bar conf-LOW';
+          confText.textContent = `Confidence: LOW \u2014 ${ei2.friendly}`;
+        }
+      };
+
+      confBar.parentNode.insertBefore(retryWrap, confBar.nextSibling);
+    }
+
+    if (!isMeal) {
+      // ── TRANSPORT modal — simple fields, no chips/budget ─────
+      flds.innerHTML = `
+        <div class="mf-group"><label>Date</label>
+          <input type="text" id="mf_date" value="${entry.date||''}"></div>
+        <div class="mf-group"><label>Location (City)</label>
+          <input type="text" id="mf_location" value="${entry.location||''}"></div>
+        <div class="mf-group full"><label>Description</label>
+          <input type="text" id="mf_description" value="${entry.description||''}"></div>
+        <div class="mf-group full"><label>Total (including tip)</label>
+          <input type="number" step="0.01" id="mf_total" class="total-inp"
+            value="${(entry.total||0).toFixed(2)}" style="font-size:20px;font-weight:700;"></div>`;
+
+      actions.innerHTML = `
+        <button onclick="window.__rm_cancel()" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--line);border-radius:10px;padding:10px 18px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;">Cancel</button>
+        <button onclick="window.__rm_accept()" style="background:var(--orange);color:#fff;border:none;border-radius:10px;padding:11px 22px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">\u2713 Accept &amp; Continue</button>`;
+
+      window.__rm_accept = () => {
+        const updated = { confidence:'HIGH' };
+        ['date','location','description'].forEach(k=>{
+          const el=document.getElementById('mf_'+k); if(el) updated[k]=el.value;
+        });
+        const t=document.getElementById('mf_total');
+        if(t) updated.total = Math.round((parseFloat(t.value)||0)*100)/100;
+        cleanup(updated);
+      };
+      window.__rm_cancel = () => cleanup(isEdit ? null : {});
+
+      overlay.classList.add('active');
+
+      function cleanup(result) {
+        delete window.__rm_accept; delete window.__rm_cancel;
+        actions.innerHTML = origActions;
+        overlay.classList.remove('active');
+        isZoomed = false;
+        resolve(result || {});
+      }
+      return;
+    }
+
+    // ── MEAL modal — full featured ────────────────────────────
+    if (!document.getElementById('chip-styles')) {
+      const st = document.createElement('style'); st.id='chip-styles';
+      st.textContent = `
+        .name-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600;background:var(--surface3);border:1px solid var(--line);color:var(--text);margin:2px;}
+        .name-chip.locked{background:var(--orange-pale);border-color:var(--orange-border);color:var(--orange);}
+        .name-chip .chip-x{cursor:pointer;color:var(--muted);font-size:11px;padding:0 2px;border:none;background:none;line-height:1;}
+        .name-chip .chip-x:hover{color:var(--err);}
+        .chip-add{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;background:var(--surface2);border:1.5px dashed var(--line);color:var(--muted);cursor:pointer;margin:2px;}
+        .chip-add:hover{border-color:var(--orange);color:var(--orange);}
+        .chip-input{border:1.5px solid var(--orange);border-radius:20px;padding:3px 10px;font-size:12px;font-family:inherit;background:var(--surface2);color:var(--text);outline:none;width:110px;margin:2px;}
+        .chip-shake{animation:chipShake .35s ease;}
+        @keyframes chipShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}60%{transform:translateX(5px)}}`;
+      document.head.appendChild(st);
+    }
+
+    // ── State ─────────────────────────────────────────────────
+    const submitterName = getLastName() || 'User';
+    const initNames = entry.persons
+      ? entry.persons.split(/,\s+and\s+|,\s*|\s+and\s+/).map(s=>s.trim()).filter(Boolean)
+      : [];
+    const chips = [];
+    chips.push({ name: submitterName, locked: true });
+    initNames.forEach(n => {
+      if (n.toLowerCase() !== submitterName.toLowerCase())
+        chips.push({ name: n, locked: false });
+    });
+
+    // Category can be toggled by user in the modal
+    let currentCategory = type; // 'meals' or 'transport'
+
+    const validTypes = new Set(['breakfast','lunch','dinner']);
+    let currentMealType = (entry.visionMealType && validTypes.has(entry.visionMealType))
+      ? entry.visionMealType
+      : (entry.mealType && validTypes.has(entry.mealType) ? entry.mealType : null);
+
+    let trueReceiptTotal = entry.total || 0;
+    let priorAdjustedTotal = null;
+    if (entry.budgetNote) {
+      const m = entry.budgetNote.match(/Receipt was \$([0-9.]+)/);
+      if (m) {
+        trueReceiptTotal = parseFloat(m[1]) || entry.total;
+        priorAdjustedTotal = entry.total;
+      }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────
+    function contractorCount_() { return chips.length; }
+    function calcBudget() {
+      return currentMealType ? (MEAL_BUDGETS[currentMealType]||100) * contractorCount_() : 0;
+    }
+    function personsString() {
+      const names = chips.map(c=>c.name);
+      if (names.length===1) return names[0];
+      if (names.length===2) return names[0]+' and '+names[1];
+      return names.slice(0,-1).join(', ')+', and '+names[names.length-1];
+    }
+    function isOverBudget() {
+      return !!(currentMealType && trueReceiptTotal > calcBudget());
+    }
+
+    // ── renderFull: rebuilds all fields (called on open, type change, chip change)
+    function renderFull() {
+      const cb    = calcBudget();
+      const over  = isOverBudget();
+      const ovAmt = over ? trueReceiptTotal - cb : 0;
+      const mLabel = currentMealType
+        ? currentMealType.charAt(0).toUpperCase()+currentMealType.slice(1) : '\u2014';
+      const cnt   = contractorCount_();
+      const cLabel = `${cnt} contractor${cnt!==1?'s':''}`;
+
+      const chipsHtml = chips.map((c,i) =>
+        c.locked
+          ? `<span class="name-chip locked">${c.name}</span>`
+          : `<span class="name-chip" id="rm_chip_${i}">${c.name}<button class="chip-x" onclick="window.__rm_removeChip(${i})">&#x2715;</button></span>`
+      ).join('') + `<span class="chip-add" id="rm_addChip" onclick="window.__rm_startAdd()">+ Add</span>`;
+
+      // Category toggle styles
+      const catMeal = currentCategory === 'meals';
+      flds.innerHTML = `
+        <div class="mf-group">
+          <label>Date</label>
+          <input type="text" id="mf_date" value="${entry.date||''}">
+        </div>
+        <div class="mf-group">
+          <label>${catMeal ? 'Vendor' : 'Location (City)'}</label>
+          <input type="text" id="mf_vendor" value="${catMeal ? (entry.vendor||'') : (entry.location||'')}">
+        </div>
+
+        <!-- Category toggle -->
+        <div class="mf-group full">
+          <label>Category</label>
+          <div style="display:flex;gap:8px;">
+            <button onclick="window.__rm_setCategory('meals')" style="flex:1;padding:9px 10px;border-radius:8px;
+              border:1.5px solid ${catMeal?'var(--orange)':'var(--line)'};
+              background:${catMeal?'var(--orange-pale)':'var(--surface2)'};
+              color:${catMeal?'var(--orange)':'var(--text2)'};
+              font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">
+              &#x1F37D; Meal
+            </button>
+            <button onclick="window.__rm_setCategory('transport')" style="flex:1;padding:9px 10px;border-radius:8px;
+              border:1.5px solid ${!catMeal?'var(--trans)':'var(--line)'};
+              background:${!catMeal?'var(--trans-light)':'var(--surface2)'};
+              color:${!catMeal?'var(--trans)':'var(--text2)'};
+              font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">
+              &#x1F695; Transport
+            </button>
+          </div>
+        </div>
+
+        ${!catMeal ? `
+        <!-- Transport description field -->
+        <div class="mf-group full">
+          <label>Description</label>
+          <input type="text" id="mf_description" value="${entry.description||''}">
+        </div>` : ''}
+
+        ${catMeal ? `
+        <div class="mf-group full">
+          <label>Contractors &nbsp;<span id="rm_cntLabel" style="color:var(--muted);font-weight:400;">(${cnt})</span></label>
+          <div id="rm_chipsWrap" style="display:flex;flex-wrap:wrap;align-items:center;min-height:32px;padding:4px 0;">
+            ${chipsHtml}
+          </div>
+        </div>
+        <div class="mf-group full">
+          <label>Meal Type</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;" id="rm_typeButtons">
+            ${['breakfast','lunch','dinner'].map(t=>{
+              const sel=currentMealType===t;
+              const colors={breakfast:'var(--trans)',lunch:'var(--ok)',dinner:'var(--orange)'};
+              const bgs={breakfast:'var(--trans-light)',lunch:'var(--ok-bg)',dinner:'var(--orange-pale)'};
+              const borders={breakfast:'var(--trans)',lunch:'var(--ok)',dinner:'var(--orange)'};
+              const labels={breakfast:'&#x2615; Breakfast',lunch:'&#x1F957; Lunch',dinner:'&#x1F37D; Dinner'};
+              return `<button onclick="window.__rm_setType('${t}')" style="flex:1;padding:8px 10px;border-radius:8px;
+                border:1.5px solid ${sel?borders[t]:'var(--line)'};
+                background:${sel?bgs[t]:'var(--surface2)'};
+                color:${sel?colors[t]:'var(--text2)'};
+                font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">
+                ${labels[t]}<br><small style="font-weight:400;">$${MEAL_BUDGETS[t]}/person</small>
+              </button>`;
+            }).join('')}
+          </div>
+        </div>` : ''}
+
+        <div class="mf-group${priorAdjustedTotal!==null?'':' '}">
+          <label>Receipt Total (incl. tip)</label>
+          <input type="number" step="0.01" min="0" id="rm_totalInput"
+            value="${trueReceiptTotal.toFixed(2)}"
+            style="font-size:${priorAdjustedTotal!==null?'16':'20'}px;font-weight:700;">
+        </div>
+        ${priorAdjustedTotal!==null ? `
+        <div class="mf-group">
+          <label>Invoiced Total</label>
+          <div style="padding:10px 13px;border-radius:8px;background:var(--ok-bg);border:1.5px solid var(--ok);font-size:16px;font-weight:700;color:var(--ok);">
+            $${priorAdjustedTotal.toFixed(2)}
+          </div>
+        </div>` : ''}
+        <div id="rm_budgetDisplay"></div>`;
+
+      // Wire total input — only updates totals section, never rebuilds fields
+      const totalInp = document.getElementById('rm_totalInput');
+      totalInp.addEventListener('input', () => {
+        // Enforce max 2 decimal places in-place — never rebuild the element
+        const val = totalInp.value;
+        if (val.includes('.')) {
+          const parts = val.split('.');
+          if (parts[1] && parts[1].length > 2) {
+            // Slice off extra decimals, preserve cursor
+            const pos = totalInp.selectionStart;
+            totalInp.value = parts[0] + '.' + parts[1].slice(0, 2);
+            totalInp.setSelectionRange(Math.min(pos, totalInp.value.length), Math.min(pos, totalInp.value.length));
+          }
+        }
+        const n = parseFloat(totalInp.value);
+        if (!isNaN(n) && n >= 0) trueReceiptTotal = Math.round(n * 100) / 100;
+        renderTotals();
+      });
+
+      renderTotals();
+    }
+
+    // ── renderTotals: only updates budget/overage display + action buttons
+    // Never touches the input field — preserves focus and cursor position
+    function renderTotals() {
+      const isTransport = currentCategory === 'transport';
+      const cb    = calcBudget();
+      const over  = !isTransport && isOverBudget();
+      const ovAmt = over ? trueReceiptTotal - cb : 0;
+      const mLabel = currentMealType
+        ? currentMealType.charAt(0).toUpperCase()+currentMealType.slice(1) : '—';
+      const cnt   = contractorCount_();
+      const cLabel = `${cnt} contractor${cnt!==1?'s':''}`;
+
+      // Budget + overage display — hidden entirely for transport
+      const budgetDiv = document.getElementById('rm_budgetDisplay');
+      if (budgetDiv) {
+        if (isTransport) {
+          budgetDiv.innerHTML = '';
+        } else {
+          budgetDiv.innerHTML = `
+            ${currentMealType ? `
+            <div class="mf-group full">
+              <label>${mLabel} Limit — ${cLabel}</label>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:8px;background:var(--ok-bg);border:1.5px solid var(--ok);">
+                <span style="font-size:18px;font-weight:700;color:var(--ok);">$${cb.toFixed(2)}</span>
+                <span class="chip chip-ok" style="font-size:11px;">Max allowed</span>
+              </div>
+            </div>` : `
+            <div class="mf-group full" style="padding:10px 14px;border-radius:8px;background:var(--warn-bg);border:1px solid var(--warn);font-size:13px;color:var(--warn);">
+              Select a meal type above to see the budget limit.
+            </div>`}
+            ${over ? `
+            <div class="mf-group full">
+              <label>Non-Billable Overage</label>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-radius:8px;background:var(--warn-bg);border:1.5px solid var(--warn);">
+                <span style="font-size:16px;font-weight:700;color:var(--warn);">$${ovAmt.toFixed(2)} over limit</span>
+                <span class="chip chip-warn">Not invoiced</span>
+              </div>
+            </div>` : (currentMealType ? `
+            <div class="mf-group full" style="padding:10px 14px;border-radius:8px;background:var(--ok-bg);border:1px solid var(--ok);font-size:13px;color:var(--ok);">
+              ✓ Within budget for ${cLabel}
+            </div>` : '')}`;
+        }
+      }
+
+      // Action buttons
+      const acceptDisabled = !isTransport && !currentMealType;
+      const acceptLabel = isTransport
+        ? '✓ Accept — Transportation'
+        : over
+          ? `✓ Invoice $${cb.toFixed(2)} for ${cLabel}`
+          : `✓ Accept${currentMealType?' — '+mLabel:''}`;
+
+      actions.innerHTML = `
+        <button onclick="window.__rm_cancel()" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--line);border-radius:10px;padding:10px 18px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;">Cancel</button>
+        ${over ? `
+        <button onclick="window.__rm_override()" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--line);border-radius:10px;padding:10px 16px;font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;">
+          Use Full Total &nbsp;<strong>$${trueReceiptTotal.toFixed(2)}</strong>
+        </button>` : ''}
+        <button onclick="window.__rm_accept()" style="background:${over?'var(--ok)':'var(--orange)'};color:#fff;border:none;border-radius:10px;padding:11px 22px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;${acceptDisabled?'opacity:0.5;cursor:not-allowed;':''}">
+          ${acceptLabel}
+        </button>`;
+    }
+
+    // ── Handlers ─────────────────────────────────────────────
+    window.__rm_setCategory = (cat) => {
+      currentCategory = cat;
+      renderFull();
+    };
+    window.__rm_setType = (t) => {
+      currentMealType = t;
+      renderFull();
+    };
+    window.__rm_removeChip = (idx) => {
+      if (chips[idx] && !chips[idx].locked) { chips.splice(idx,1); renderFull(); }
+    };
+    window.__rm_startAdd = () => {
+      const wrap   = document.getElementById('rm_chipsWrap');
+      const addBtn = document.getElementById('rm_addChip');
+      if (!addBtn) return;
+      addBtn.style.display = 'none';
+      const inp = document.createElement('input');
+      inp.className='chip-input'; inp.placeholder='Name\u2026'; inp.maxLength=40;
+      inp.addEventListener('input', () => {
+        inp.value = inp.value.replace(/\b\w/g, c=>c.toUpperCase());
+      });
+      const commit = () => {
+        const name = inp.value.trim();
+        if (name) {
+          const dup = chips.some(c=>c.name.toLowerCase()===name.toLowerCase());
+          if (dup) {
+            inp.classList.add('chip-shake');
+            setTimeout(()=>inp.classList.remove('chip-shake'),400);
+            return;
+          }
+          chips.push({name, locked:false});
+        }
+        renderFull();
+      };
+      inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){e.preventDefault();commit();} });
+      inp.addEventListener('blur', commit);
+      wrap.insertBefore(inp, addBtn);
+      inp.focus();
+    };
+    window.__rm_accept = () => {
+      const dateEl   = document.getElementById('mf_date');
+      const vendorEl = document.getElementById('mf_vendor');
+      const descEl   = document.getElementById('mf_description');
+
+      // Transport path — no budget logic needed
+      if (currentCategory === 'transport') {
+        cleanup({
+          confidence: 'HIGH',
+          date:        dateEl   ? dateEl.value   : entry.date,
+          location:    vendorEl ? vendorEl.value : entry.location,
+          description: descEl   ? descEl.value   : entry.description,
+          total: trueReceiptTotal,
+          type: 'transport',
+          categoryOverride: type !== 'transport' ? 'transport' : null,
+        });
+        return;
+      }
+
+      // Meal path
+      if (!currentMealType) return;
+      const over = isOverBudget();
+      const cb   = calcBudget();
+      const cnt  = contractorCount_();
+      const result = {
+        confidence: 'HIGH',
+        date:   dateEl   ? dateEl.value   : entry.date,
+        vendor: vendorEl ? vendorEl.value : entry.vendor,
+        persons: personsString(),
+        total: over ? cb : trueReceiptTotal,
+        mealType: currentMealType,
+        visionMealType: currentMealType,
+        type: 'meals',
+        categoryOverride: type !== 'meals' ? 'meals' : null,
+      };
+      if (over) {
+        const overage  = trueReceiptTotal - cb;
+        const mLabel   = currentMealType;
+        const noteText = `Receipt was $${trueReceiptTotal.toFixed(2)}; Invoicing $${cb.toFixed(2)} for ${cnt} contractor${cnt!==1?'s':''} at max ${mLabel} per diem.`;
+        result.budgetNote  = noteText;
+        result.confidence  = 'ADJUSTED';
+        overageResults.push({
+          date:result.date, vendor:result.vendor, persons:result.persons,
+          mealType:mLabel, receiptTotal:trueReceiptTotal,
+          invoicedTotal:cb, overage, noteText
+        });
+      } else {
+        result.budgetNote = null;
+      }
+      cleanup(result);
+    };
+    window.__rm_override = () => {
+      const dateEl   = document.getElementById('mf_date');
+      const vendorEl = document.getElementById('mf_vendor');
+      const descEl   = document.getElementById('mf_description');
+      if (currentCategory === 'transport') {
+        cleanup({
+          confidence: 'HIGH',
+          date:        dateEl   ? dateEl.value   : entry.date,
+          location:    vendorEl ? vendorEl.value : entry.location,
+          description: descEl   ? descEl.value   : entry.description,
+          total: trueReceiptTotal,
+          type: 'transport',
+          categoryOverride: type !== 'transport' ? 'transport' : null,
+        });
+      } else {
+        cleanup({
+          confidence: 'HIGH',
+          date:   dateEl   ? dateEl.value   : entry.date,
+          vendor: vendorEl ? vendorEl.value : entry.vendor,
+          persons: personsString(),
+          total: trueReceiptTotal,
+          mealType: currentMealType,
+          visionMealType: currentMealType,
+          type: 'meals',
+          budgetNote: null,
+          categoryOverride: type !== 'meals' ? 'meals' : null,
+        });
+      }
+    };
+    window.__rm_cancel = () => cleanup(isEdit ? null : {});
+
+    overlay.classList.add('active');
+    renderFull();
+
+    function cleanup(result) {
+      delete window.__rm_setCategory; delete window.__rm_setType; delete window.__rm_removeChip;
+      delete window.__rm_startAdd; delete window.__rm_accept;
+      delete window.__rm_override; delete window.__rm_cancel;
+      actions.innerHTML = origActions;
+      overlay.classList.remove('active');
+      isZoomed = false;
+      resolve(result || {});
+    }
+  });
+}
+
+
+
+
+
+// ── MODAL CLOSE ───────────────────────────────────────────────
+// Called by both the × button and the static Cancel button in HTML.
+// Routes to the active modal's cancel handler if one is registered.
+function closeModal() {
+  if (typeof window.__rm_cancel === 'function') {
+    window.__rm_cancel();
+  } else {
+    document.getElementById('modalOverlay').classList.remove('active');
+    isZoomed = false;
+  }
+}
+
+// ── ZOOM / PAN ─────────────────────────────────────────────────
+function setupZoom(){
+  const ZOOM = 3;
+  const wrap = document.getElementById('receiptViewer');
+  const img  = document.getElementById('modalImg');
+
+  wrap.addEventListener('click', e => {
+    // Ignore if this was end of a drag
+    if (dragStart && (Math.abs(e.clientX-dragStart.sx)>5 || Math.abs(e.clientY-dragStart.sy)>5)) {
+      dragStart = null; return;
+    }
+    dragStart = null;
+    isZoomed = !isZoomed;
+
+    if (isZoomed) {
+      // Get the image's rendered bounds (not the wrapper's)
+      const imgRect  = img.getBoundingClientRect();
+      const wrapRect = wrap.getBoundingClientRect();
+
+      // Clamp click to image bounds
+      const clampedX = Math.max(imgRect.left, Math.min(imgRect.right,  e.clientX));
+      const clampedY = Math.max(imgRect.top,  Math.min(imgRect.bottom, e.clientY));
+
+      // Click position as fraction of image (0–1)
+      const fracX = (clampedX - imgRect.left) / imgRect.width;
+      const fracY = (clampedY - imgRect.top)  / imgRect.height;
+
+      // After zoom the image is ZOOM× larger. We want the clicked point to stay
+      // under the cursor. The transform-origin is top-left of the image element.
+      // translate needed: move so that fracX/fracY of the zoomed image aligns with
+      // the same point in the wrapper.
+      const scaledW = imgRect.width  * ZOOM;
+      const scaledH = imgRect.height * ZOOM;
+
+      // Position of image top-left relative to wrapper
+      const imgOffX = imgRect.left - wrapRect.left;
+      const imgOffY = imgRect.top  - wrapRect.top;
+
+      // We want: imgOffX + fracX*scaledW = clampedX - wrapRect.left
+      // => translateX = (clampedX - wrapRect.left) - imgOffX - fracX*scaledW
+      let tx = (clampedX - wrapRect.left) - imgOffX - fracX * scaledW;
+      let ty = (clampedY - wrapRect.top)  - imgOffY - fracY * scaledH;
+
+      panOffset = { x: tx, y: ty };
+      img.style.transformOrigin = '0 0';
+      img.style.transform = `scale(${ZOOM}) translate(${tx/ZOOM}px,${ty/ZOOM}px)`;
+      wrap.classList.add('zoomed');
+      document.getElementById('zoomHint').textContent = 'Click to zoom out \xb7 Drag to pan';
+    } else {
+      img.style.transform = 'scale(1)';
+      img.style.transformOrigin = '0 0';
+      panOffset = {x:0, y:0};
+      wrap.classList.remove('zoomed');
+      document.getElementById('zoomHint').textContent = 'Click to zoom \xb7 Drag to pan';
+    }
+  });
+
+  // Use pointer capture so drag always ends cleanly, even if pointer
+  // leaves the window or browser. pointercancel handles alt-tab, etc.
+  wrap.addEventListener('pointerdown', e => {
+    if (!isZoomed) return;
+    dragStart = {sx:e.clientX, sy:e.clientY, ox:panOffset.x, oy:panOffset.y};
+    wrap.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  wrap.addEventListener('pointermove', e => {
+    if (!isZoomed || !dragStart) return;
+    panOffset = {x: dragStart.ox+(e.clientX-dragStart.sx), y: dragStart.oy+(e.clientY-dragStart.sy)};
+    img.style.transform = `scale(${ZOOM}) translate(${panOffset.x/ZOOM}px,${panOffset.y/ZOOM}px)`;
+  });
+  const endDrag = () => { dragStart = null; };
+  wrap.addEventListener('pointerup',     endDrag);
+  wrap.addEventListener('pointercancel', endDrag);
+}
+
+// ── EXCEL EXPORT — JSZip binary XML patch (preserves all formatting) ──
+async function downloadExcel(){
+  let templateBytes;
+  try {
+    templateBytes = b64ToArrayBuffer(TEMPLATE_B64);
+  } catch(e) {
+    alert('Template load error: '+e.message); return;
+  }
+
+  // Helper: escape special XML characters in cell values
+  function xe(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  // Helper: inject an inline string value into a cell element.
+  // Preserves the cell's existing s="..." style and other attributes.
+  // Uses inlineStr (t="inlineStr") so we never touch sharedStrings.xml.
+  function setCellStr(cellXml, addr, value) {
+    const re = new RegExp(`(<c r="${addr}"[^>]*?)(?:\\s*t="[^"]*")?([^>]*>)(?:<(?:f|v|is)[^<]*(?:</(?:f|v|is)>)?)*`, 'g');
+    return cellXml.replace(re, (match, before, after) => {
+      if (!value && value !== 0) return `${before}${after}`;
+      return `${before} t="inlineStr"${after}<is><t>${xe(value)}</t></is>`;
+    });
+  }
+
+  // Helper: inject a numeric value into a cell element.
+  function setCellNum(cellXml, addr, value) {
+    const re = new RegExp(`(<c r="${addr}"[^>]*?)(?:\\s*t="[^"]*")?([^>]*>)(?:<(?:f|v|is)[^<]*(?:</(?:f|v|is)>)?)*`, 'g');
+    return cellXml.replace(re, (match, before, after) => {
+      return `${before}${after}<v>${value}</v>`;
+    });
+  }
+
+  // Smarter approach: use regex to find and replace just the <v> or add it
+  // Works on the full sheet XML string directly
+  function patchCell(xml, cellRef, value, isNum) {
+    if (value === '' || value === null || value === undefined) return xml;
+
+    // Handle self-closing empty cell: <c r="C22" s="35"/>
+    const scRe = new RegExp(`<c r="${cellRef}"([^/]*)\\/>`,'g');
+    xml = xml.replace(scRe, (match, attrs) => {
+      if (isNum) {
+        return `<c r="${cellRef}"${attrs}><v>${value}</v></c>`;
+      } else {
+        return `<c r="${cellRef}"${attrs} t="inlineStr"><is><t>${xe(value)}</t></is></c>`;
+      }
+    });
+
+    // Handle open/close cell with existing content: <c r="C2" ...>...</c>
+    const cellRe = new RegExp(`(<c\\b[^>]*\\br="${cellRef}"[^>]*>)((?:<[^/][^>]*>)*?)(</c>)`, 'g');
+    xml = xml.replace(cellRe, (full, open, inner, close) => {
+      let newOpen = open.replace(/\s*t="[^"]*"/, '');
+      let newInner = inner.replace(/<f[^>]*>.*?<\/f>/gs,'').replace(/<v>.*?<\/v>/g,'').replace(/<is>.*?<\/is>/gs,'');
+      if (isNum) {
+        return `${newOpen}${newInner}<v>${value}</v>${close}`;
+      } else {
+        newOpen = newOpen.replace(/(<c\b[^>]*?)(\s*\/?>|>)/, (m, attrs, end) => `${attrs} t="inlineStr"${end}`);
+        return `${newOpen}${newInner}<is><t>${xe(value)}</t></is>${close}`;
+      }
+    });
+
+    return xml;
+  }
+
+  // Patch rows 10-24 in Meals or Transport sheet
+  // Data rows are present as empty cells like <c r="A10" s="106"/>
+  // We replace the self-closing empty cell with a full cell containing value
+  function patchDataRow(xml, rowNum, colA, colB, colC, colD) {
+    // For each col, replace self-closing empty cell or full empty cell with valued cell
+    function patchCol(x, ref, val, isNum) {
+      if (val === '' || val === null || val === undefined) return x;
+      // Match self-closing: <c r="A10" s="106"/>
+      const scRe = new RegExp(`<c r="${ref}"([^/]*)\\/>`,'g');
+      // Match empty open/close: <c r="A10" s="106"></c>
+      const ocRe = new RegExp(`<c r="${ref}"([^>]*)><\\/c>`,'g');
+      if (isNum) {
+        x = x.replace(scRe, `<c r="${ref}"$1><v>${val}</v></c>`);
+        x = x.replace(ocRe, `<c r="${ref}"$1><v>${val}</v></c>`);
+      } else {
+        x = x.replace(scRe, `<c r="${ref}"$1 t="inlineStr"><is><t>${xe(val)}</t></is></c>`);
+        x = x.replace(ocRe, `<c r="${ref}"$1 t="inlineStr"><is><t>${xe(val)}</t></is></c>`);
+      }
+      return x;
+    }
+    xml = patchCol(xml, `A${rowNum}`, colA, false);
+    xml = patchCol(xml, `B${rowNum}`, colB, false);
+    xml = patchCol(xml, `C${rowNum}`, colC, false);
+    xml = patchCol(xml, `D${rowNum}`, colD, true);
+    return xml;
+  }
+
+  try {
+    const zip = await JSZip.loadAsync(templateBytes);
+
+    // ── PATCH FREELANCER INVOICE (sheet1.xml) ──────────────────
+    let s1 = await zip.file('xl/worksheets/sheet1.xml').async('string');
+
+    const fields = [
+      ['C2', document.getElementById('dateSubmitted').value, false],
+      ['G2', document.getElementById('apJobNum').value, false],
+      ['C4', document.getElementById('userName').value, false],
+      ['C6', document.getElementById('companyName').value, false],
+      ['G6', document.getElementById('companyInvoice').value, false],
+      ['C8', document.getElementById('userAddress').value, false],
+      ['C10', document.getElementById('userCity').value, false],
+      ['E10', document.getElementById('userState').value, false],
+      ['G10', document.getElementById('userZip').value, false],
+      ['C12', document.getElementById('programName').value, false],
+      ['C14', document.getElementById('programDates').value, false],
+      ['C16', document.getElementById('locationCity').value, false],
+      ['C18', document.getElementById('venue').value, false],
+    ];
+    for (const [ref, val, isNum] of fields) {
+      s1 = patchCell(s1, ref, val, isNum);
+    }
+    const dayRate = parseFloat(document.getElementById('dayRate').value)||0;
+    if (dayRate) s1 = patchCell(s1, 'C20', dayRate, true);
+    const daysW = parseFloat(document.getElementById('daysWorked').value)||0;
+    if (daysW) s1 = patchCell(s1, 'C22', daysW, true);
+    // (s1 written to zip after formula cache strip below)
+
+    // ── PATCH MEALS (sheet2.xml) ───────────────────────────────
+    // Sort by date before writing — ensures sheet order matches chronological order
+    // regardless of the order receipts were dropped in.
+    const sortedMeals     = sortByDateTime([...mealsResults]);
+    const sortedTransport = sortByDateTime([...transportResults]);
+
+    // Each adjusted meal takes 2 rows: the meal + an italic note row.
+    // We need to inject the italic style into styles.xml first.
+    let stylesXml = await zip.file('xl/styles.xml').async('string');
+    // Add italic left-align style at the end of cellXfs if not already added
+    if (!stylesXml.includes('italic-note-added')) {
+      // Font 7 is italic Arial 10pt. Add a new xf using it with left alignment.
+      stylesXml = stylesXml.replace('</cellXfs>',
+        '<xf numFmtId="49" fontId="7" fillId="2" borderId="48" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf><!-- italic-note-added --></cellXfs>');
+      // Also update the count attribute
+      stylesXml = stylesXml.replace(/(<cellXfs count=")(\d+)(")/, (m,a,n,b) => `${a}${parseInt(n)+1}${b}`);
+      zip.file('xl/styles.xml', stylesXml);
+    }
+    // The new italic style index is 143 (144 total after adding)
+    const ITALIC_STYLE = '143';
+
+    let s2 = await zip.file('xl/worksheets/sheet2.xml').async('string');
+    const mStart = 10;
+    let mRow = mStart;
+
+    // Build flat list: each meal entry + optional note row (using date-sorted order)
+    const mealRows = [];
+    sortedMeals.forEach(r => {
+      mealRows.push({type:'meal', entry:r});
+      if (r.budgetNote) mealRows.push({type:'note', noteText:r.budgetNote});
+    });
+
+    mealRows.forEach(item => {
+      if (mRow > 24) return;
+      if (item.type === 'meal') {
+        s2 = patchDataRow(s2, mRow, item.entry.date||'', item.entry.vendor||'', item.entry.persons||'', item.entry.total||0);
+      } else {
+        // Italic note row — populate column B with italic style, clear A/C/D
+        const noteRef = `B${mRow}`;
+        s2 = s2.replace(
+          new RegExp(`<c r="${noteRef}"([^/]*)\\s*\\/>`),
+          (match, attrs) => {
+            const cleanAttrs = attrs.replace(/\s*s="[^"]*"/, '');
+            return `<c r="${noteRef}"${cleanAttrs} s="${ITALIC_STYLE}" t="inlineStr"><is><t>${xe(item.noteText)}</t></is></c>`;
+          }
+        );
+        // Expand row height so note text isn't clipped — replace existing ht + customHeight
+        s2 = s2.replace(
+          new RegExp(`(<row r="${mRow}"[^>]*?)\\s*ht="[^"]*"\\s*customHeight="[^"]*"`),
+          `$1 ht="42" customHeight="1"`
+        );
+      }
+      mRow++;
+    });
+
+    // Always use full range D10:D24 — empty rows and note rows (no D value) sum to zero
+    s2 = s2.replace(/SUM\(D10:D\d+\)/, 'SUM(D10:D24)');
+    // (s2 written to zip after footer fix below)
+
+    // ── PATCH TRANSPORTATION (sheet3.xml) ──────────────────────
+    let s3 = await zip.file('xl/worksheets/sheet3.xml').async('string');
+    const tStart = 10;
+    sortedTransport.forEach((r, i) => {
+      const row = tStart + i;
+      if (row > 24) return;
+      s3 = patchDataRow(s3, row, r.date||'', r.location||'', r.description||'', r.total||0);
+    });
+    // Always use full range — empty rows sum to zero
+    s3 = s3.replace(/SUM\(D10:D\d+\)/, 'SUM(D10:D24)');
+    zip.file('xl/worksheets/sheet3.xml', s3);
+
+    // ── GENERATE & DOWNLOAD ────────────────────────────────────
+    const inv_num = document.getElementById('companyInvoice').value||'INVOICE';
+    const jobNum  = document.getElementById('apJobNum').value||'';
+    const city    = document.getElementById('locationCity').value||'City';
+    const uname   = document.getElementById('userName').value||'Invoice';
+    const fname   = `${inv_num} - ${uname} - Invoice - ${jobNum} ${city}.xlsx`.replace(/\s+/g,' ').trim();
+
+    // ── FIX FOOTER DOUBLE-ENCODED AMPERSANDS ──────────────────
+    // The template footer has &amp;K000000 instead of &K000000.
+    // Apply directly to already-modified sheet strings.
+    function fixFooter(xml) {
+      return xml.replace(/(<(?:odd|even|first)?(?:Header|Footer)[^>]*>)([\s\S]*?)(<\/(?:odd|even|first)?(?:Header|Footer)>)/g,
+        (m, open, content, close) => open + content.replace(/&amp;/g, '&') + close);
+    }
+    s1 = fixFooter(s1);
+    s2 = fixFooter(s2);
+    s3 = fixFooter(s3);
+    zip.file('xl/worksheets/sheet2.xml', s2);
+    zip.file('xl/worksheets/sheet3.xml', s3);
+
+    // ── FORCE RECALCULATION ON OPEN ───────────────────────────
+    // Adds calcPr fullCalcOnLoad="1" so Numbers, Excel, and Preview
+    // all recalculate formulas instead of showing stale cached zeros.
+    let wbXml = await zip.file('xl/workbook.xml').async('string');
+    if (!wbXml.includes('calcPr')) {
+      wbXml = wbXml.replace('</workbook>', '<calcPr fullCalcOnLoad="1"/></workbook>');
+    } else {
+      wbXml = wbXml.replace(/(<calcPr[^/]*?)(\/>|>)/, '$1 fullCalcOnLoad="1"$2');
+    }
+    zip.file('xl/workbook.xml', wbXml);
+
+    // Strip stale cached <v> from formula cells in sheet1 so Preview
+    // doesn't render old zeros. Cells with <f> don't need a cached <v>.
+    s1 = s1.replace(/(<c\b[^>]*>(?:<f>[^<]*<\/f>))<v>[^<]*<\/v>/g, '$1');
+    zip.file('xl/worksheets/sheet1.xml', s1);
+
+    const blob = await zip.generateAsync({
+      type: 'blob',
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 }
+    });
+
+    window._xlsxBlob = blob;
+    window._xlsxName = fname;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fname; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+  } catch(e) {
+    console.error('Excel export error:', e);
+    alert('Excel export error: ' + e.message);
+  }
+}
+
+
+// ── GOOGLE SHEETS ──────────────────────────────────────────────
+async function openGoogleSheets(){
+  if(!window._xlsxBlob) await downloadExcel();
+  alert('Your Excel file has been downloaded.\n\nTo open in Google Sheets:\n1. Go to sheets.google.com\n2. Click File → Import → Upload\n3. Select the downloaded file\n\nOr drag it into Google Drive and open with Sheets.');
+  window.open('https://sheets.google.com/','_blank');
+}
+
+// ── RECEIPTS PDF (PURE IMAGES, NO HEADERS) ────────────────────
+async function downloadReceiptPDF(){
+  // Meals first (chrono), then Transportation (chrono)
+  const allEntries=[
+    ...mealsResults.map(r=>({...r,cat:'Meals'})),
+    ...transportResults.map(r=>({...r,cat:'Transportation'}))
+  ];
+  if(!allEntries.length){alert('No receipts to export.');return;}
+
+  const btn=document.getElementById('pdfBtn');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Building PDF...';
+
+  const {jsPDF}=window.jspdf;
+  // We'll collect pages first to size them properly
+  let firstPage=true;
+  let pdf=null;
+
+  for(let i=0;i<allEntries.length;i++){
+    const entry=allEntries[i];
+    // Get all images for this receipt
+    const imgs=entry.allImgs&&entry.allImgs.length?entry.allImgs:[{dataUrl:entry.dataUrl,w:595,h:842}];
+
+    for(let p=0;p<imgs.length;p++){
+      const imgData=imgs[p];
+      if(!imgData.dataUrl) continue;
+
+      // Get actual image dimensions
+      await new Promise(res=>{
+        const im=new Image();
+        im.onload=()=>{
+          const W=im.naturalWidth||595,H=im.naturalHeight||842;
+          // Convert px to mm (96dpi assumed: 1px = 0.2646mm)
+          const wMM=W*0.2646,hMM=H*0.2646;
+
+          if(firstPage){
+            pdf=new jsPDF({orientation:wMM>hMM?'landscape':'portrait',unit:'mm',format:[wMM,hMM]});
+            firstPage=false;
+          } else {
+            pdf.addPage([wMM,hMM],wMM>hMM?'landscape':'portrait');
+          }
+          pdf.addImage(imgData.dataUrl,'JPEG',0,0,wMM,hMM,undefined,'FAST');
+          res();
+        };
+        im.onerror=()=>res();
+        im.src=imgData.dataUrl;
+      });
+    }
+  }
+
+  if(!pdf){btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Receipts PDF';btn.disabled=false;return;}
+
+  const inv_num=document.getElementById('companyInvoice').value||'INVOICE';
+  const jobNum=document.getElementById('apJobNum').value||'';
+  const city=document.getElementById('locationCity').value||'City';
+  const pdfName=`${inv_num} - ${document.getElementById('userName').value||'Jeremy Poland'} - Receipts - ${jobNum} ${city}.PDF`;
+  pdf.save(pdfName);
+
+  btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Receipts PDF`;
+  btn.disabled=false;
+}
+</script>
+</body>
+</html>
