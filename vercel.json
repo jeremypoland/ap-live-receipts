@@ -1,4 +1,10 @@
 {
+  "functions": {
+    "api/vision.js": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)",     "destination": "/index.html" }
