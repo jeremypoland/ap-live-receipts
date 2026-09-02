@@ -2752,9 +2752,24 @@ async function downloadExcel(){
     }
     zip.file('xl/workbook.xml', wbXml);
 
-    // Strip stale cached <v> from formula cells in sheet1 so Preview
-    // doesn't render old zeros. Cells with <f> don't need a cached <v>.
-    s1 = s1.replace(/(<c\b[^>]*>(?:<f>[^<]*<\/f>))<v>[^<]*<\/v>/g, '$1');
+    // Inject computed cached values into formula cells so Quick Look / Preview
+    // shows real numbers without needing to open and recalculate.
+    // fullCalcOnLoad ensures live apps (Excel, Sheets, Numbers) recalculate anyway.
+    const mealsTotal_     = mealsResults.reduce((s,r)=>s+(r.total||0),0);
+    const transportTotal_ = transportResults.reduce((s,r)=>s+(r.total||0),0);
+    const salary_         = dayRate * daysW;
+
+    function patchFormulaV(xml, cellRef, val) {
+      // Replace existing <v> in formula cell, or add one if absent
+      const rpl = `$1<v>${val}</v>`;
+      xml = xml.replace(new RegExp(`(<c r="${cellRef}"[^>]*><f>[^<]*</f>)<v>[^<]*</v>`), rpl);
+      xml = xml.replace(new RegExp(`(<c r="${cellRef}"[^>]*><f>[^<]*</f>)(</c>)`), `$1<v>${val}</v>$2`);
+      return xml;
+    }
+
+    if (salary_ > 0) s1 = patchFormulaV(s1, 'C24', salary_.toFixed(2));
+    s2 = patchFormulaV(s2, 'D25', mealsTotal_.toFixed(2));
+    s3 = patchFormulaV(s3, 'D25', transportTotal_.toFixed(2));
     zip.file('xl/worksheets/sheet1.xml', s1);
 
     const blob = await zip.generateAsync({
