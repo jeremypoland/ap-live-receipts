@@ -280,8 +280,8 @@ input:checked + .toggle-slider:before{transform:translateX(20px);background:#fff
       <input type="text" id="companyName" name="organization" autocomplete="organization" placeholder="LLC, Inc, etc.">
     </div>
     <div class="form-group">
-      <div class="label-row"><label for="companyInvoice">Company Invoice # <span class="auto-badge">⚡ Auto</span></label></div>
-      <input type="text" id="companyInvoice" class="autofilled" placeholder="From program start date" autocomplete="off" oninput="onInvoiceManualEdit()">
+      <div class="label-row"><label for="invoiceNum">Company Invoice # <span class="auto-badge">⚡ Auto</span></label></div>
+      <input type="text" id="invoiceNum" name="invoice-ref" class="autofilled" placeholder="From program start date" autocomplete="nope" oninput="onInvoiceManualEdit()">
     </div>
 
     <!-- Row 4: Address -->
@@ -810,11 +810,11 @@ function onProgramDatesChange() {
     const result = parseProgramDates(str);
     if (result) {
       const y=result.start.getFullYear(), m=String(result.start.getMonth()+1).padStart(2,'0'), d=String(result.start.getDate()).padStart(2,'0');
-      const el=document.getElementById('companyInvoice');
+      const el=document.getElementById('invoiceNum');
       el.value=`${y}${m}${d}`;
       el.classList.add('autofilled');
     } else {
-      document.getElementById('companyInvoice').value='';
+      document.getElementById('invoiceNum').value='';
     }
   }
   checkDaysMismatch();
@@ -822,7 +822,7 @@ function onProgramDatesChange() {
 
 function onInvoiceManualEdit() {
   invoiceManuallyEdited = true;
-  document.getElementById('companyInvoice').classList.remove('autofilled');
+  document.getElementById('invoiceNum').classList.remove('autofilled');
 }
 
 function checkDaysMismatch() {
@@ -2638,7 +2638,7 @@ async function downloadExcel(){
       ['G2', document.getElementById('apJobNum').value, false],
       ['C4', document.getElementById('userName').value, false],
       ['C6', document.getElementById('companyName').value, false],
-      ['G6', document.getElementById('companyInvoice').value, false],
+      ['G6', document.getElementById('invoiceNum').value, false],
       ['C8', document.getElementById('userAddress').value, false],
       ['C10', document.getElementById('userCity').value, false],
       ['E10', document.getElementById('userState').value, false],
@@ -2729,7 +2729,7 @@ async function downloadExcel(){
     zip.file('xl/worksheets/sheet3.xml', s3);
 
     // ── GENERATE & DOWNLOAD ────────────────────────────────────
-    const inv_num = document.getElementById('companyInvoice').value||'INVOICE';
+    const inv_num = document.getElementById('invoiceNum').value||'INVOICE';
     const jobNum  = document.getElementById('apJobNum').value||'';
     const city    = document.getElementById('locationCity').value||'City';
     const uname   = document.getElementById('userName').value||'Invoice';
@@ -2851,7 +2851,7 @@ async function downloadReceiptPDF(){
 
   if(!pdf){btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Receipts PDF';btn.disabled=false;return;}
 
-  const inv_num=document.getElementById('companyInvoice').value||'INVOICE';
+  const inv_num=document.getElementById('invoiceNum').value||'INVOICE';
   const jobNum=document.getElementById('apJobNum').value||'';
   const city=document.getElementById('locationCity').value||'City';
   const pdfName=`${inv_num} - ${document.getElementById('userName').value||'Jeremy Poland'} - Receipts - ${jobNum} ${city}.PDF`;
